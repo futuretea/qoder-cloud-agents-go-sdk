@@ -4,6 +4,7 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	httpclient "github.com/futuretea/go-http-client"
@@ -39,6 +40,33 @@ type UserMessageEvent struct {
 // NewUserMessage creates a new user message event.
 func NewUserMessage(content string) UserMessageEvent {
 	return UserMessageEvent{Type: EventTypeUserMessage, Content: content}
+}
+
+// NewInterruptEvent creates a user interrupt event to stop a running session.
+func NewInterruptEvent() UserMessageEvent {
+	return UserMessageEvent{Type: EventTypeUserInterrupt}
+}
+
+// NewToolConfirmationEvent creates a tool confirmation event.
+// toolUseID is the ID of the tool_use event being confirmed.
+// Set approved to true to allow the tool call, false to deny it.
+func NewToolConfirmationEvent(toolUseID string, approved bool) UserMessageEvent {
+	payload, _ := json.Marshal(map[string]any{
+		"tool_use_id": toolUseID,
+		"approved":    approved,
+	})
+	return UserMessageEvent{Type: EventTypeUserToolConfirmation, Content: string(payload)}
+}
+
+// NewCustomToolResultEvent creates a custom tool result event.
+// toolUseID is the ID of the custom_tool_use event.
+// result contains the tool result data.
+func NewCustomToolResultEvent(toolUseID string, result map[string]any) UserMessageEvent {
+	payload, _ := json.Marshal(map[string]any{
+		"tool_use_id": toolUseID,
+		"result":      result,
+	})
+	return UserMessageEvent{Type: EventTypeUserCustomToolResult, Content: string(payload)}
 }
 
 // SendEventRequest wraps events for sending to a session.
@@ -94,6 +122,9 @@ func (a *API) List(ctx context.Context, sessionID string, params *types.ListPara
 // Use qoderhttp.NewSSEStream(resp) to parse the SSE events.
 // The caller is responsible for closing the response body via SSEStream.Close().
 //
+// An optional lastEventID can be provided for SSE resumption. When set, the
+// server replays events that occurred after the event with the given ID.
+//
 // Usage:
 //
 //	resp, err := client.Events().Stream(ctx, sessionID)
@@ -105,12 +136,20 @@ func (a *API) List(ctx context.Context, sessionID string, params *types.ListPara
 //	    if err == io.EOF { break }
 //	    ...
 //	}
-func (a *API) Stream(ctx context.Context, sessionID string) (*http.Response, error) {
+//
+// Resume from a specific event:
+//
+//	resp, err := client.Events().Stream(ctx, sessionID, "evt_123")
+func (a *API) Stream(ctx context.Context, sessionID string, lastEventID ...string) (*http.Response, error) {
 	if err := qoderhttp.ValidateID(sessionID); err != nil {
 		return nil, err
 	}
 	path := "/sessions/" + sessionID + "/events/stream"
-	return a.client.GET(path).
+	req := a.client.GET(path).
 		WithHeader("Accept", "text/event-stream").
-		WithContext(ctx).DoWithResponse()
+		WithContext(ctx)
+	if len(lastEventID) > 0 && lastEventID[0] != "" {
+		req = req.WithHeader("Last-Event-ID", lastEventID[0])
+	}
+	return req.DoWithResponse()
 }

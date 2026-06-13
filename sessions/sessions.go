@@ -4,17 +4,73 @@ package sessions
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/types"
 )
 
+// AgentRef represents an agent reference that can be either a plain string ID
+// or an object with id and optional version number.
+//
+// When Version is 0, AgentRef marshals as a plain JSON string (e.g., "agent_xxx").
+// When Version > 0, it marshals as an object (e.g., {"id":"agent_xxx","version":3}).
+type AgentRef struct {
+	ID      string
+	Version int
+}
+
+// MarshalJSON implements custom JSON marshaling for AgentRef.
+func (a AgentRef) MarshalJSON() ([]byte, error) {
+	if a.Version == 0 {
+		return json.Marshal(a.ID)
+	}
+	return json.Marshal(struct {
+		ID      string `json:"id"`
+		Version int    `json:"version"`
+	}{ID: a.ID, Version: a.Version})
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for AgentRef.
+// It accepts both a plain string and an {id, version} object.
+func (a *AgentRef) UnmarshalJSON(data []byte) error {
+	// Try plain string first.
+	var id string
+	if err := json.Unmarshal(data, &id); err == nil {
+		a.ID = id
+		a.Version = 0
+		return nil
+	}
+	// Try object form.
+	var obj struct {
+		ID      string `json:"id"`
+		Version int    `json:"version"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return fmt.Errorf("sessions: AgentRef must be a string ID or {id, version} object: %w", err)
+	}
+	a.ID = obj.ID
+	a.Version = obj.Version
+	return nil
+}
+
+// NewAgentRef creates an AgentRef from a plain string agent ID.
+func NewAgentRef(id string) AgentRef {
+	return AgentRef{ID: id}
+}
+
+// NewAgentRefWithVersion creates an AgentRef with an explicit version number.
+func NewAgentRefWithVersion(id string, version int) AgentRef {
+	return AgentRef{ID: id, Version: version}
+}
+
 // Session represents an agent run or conversation instance.
 type Session struct {
 	ID            string         `json:"id"`
 	Title         string         `json:"title,omitempty"`
-	Agent         string         `json:"agent"`
+	Agent         AgentRef       `json:"agent"`
 	EnvironmentID string         `json:"environment_id,omitempty"`
 	Status        string         `json:"status"`
 	Metadata      types.Metadata `json:"metadata,omitempty"`
@@ -43,7 +99,7 @@ func NewResourceGitHub(url, mountPath string) Resource {
 
 // CreateSessionRequest is the builder for creating a session.
 type CreateSessionRequest struct {
-	Agent                string         `json:"agent"`
+	Agent                AgentRef       `json:"agent"`
 	EnvironmentID        string         `json:"environment_id,omitempty"`
 	Title                string         `json:"title,omitempty"`
 	Metadata             types.Metadata `json:"metadata,omitempty"`
@@ -51,12 +107,16 @@ type CreateSessionRequest struct {
 	Resources            []Resource     `json:"resources,omitempty"`
 	VaultIDs             []string       `json:"vault_ids,omitempty"`
 	MemoryStoreIDs       []string       `json:"memory_store_ids,omitempty"`
-	EnvironmentVariables string         `json:"environment_variables,omitempty"`
+	EnvironmentVariables string `json:"environment_variables,omitempty"`
+	// Environment, when set, provides an inline environment configuration.
+	// When both EnvironmentID and Environment are set, EnvironmentID takes precedence.
+	// The value should match the shape of CreateEnvironmentRequest (name, description, config, metadata).
+	Environment any `json:"environment,omitempty"`
 }
 
 // NewCreateRequest creates a new CreateSessionRequest with the required agent ID.
 func NewCreateRequest(agentID string) *CreateSessionRequest {
-	return &CreateSessionRequest{Agent: agentID}
+	return &CreateSessionRequest{Agent: NewAgentRef(agentID)}
 }
 
 // WithEnvironment sets the environment by ID.
@@ -104,6 +164,13 @@ func (r *CreateSessionRequest) WithMemoryStore(storeID string) *CreateSessionReq
 // WithEnvironmentVariables sets environment variables as a newline-separated string.
 func (r *CreateSessionRequest) WithEnvironmentVariables(vars string) *CreateSessionRequest {
 	r.EnvironmentVariables = vars
+	return r
+}
+
+// WithInlineEnvironment sets an inline environment configuration for ephemeral environments.
+// When both EnvironmentID and Environment are set, the API server typically uses EnvironmentID.
+func (r *CreateSessionRequest) WithInlineEnvironment(env any) *CreateSessionRequest {
+	r.Environment = env
 	return r
 }
 
