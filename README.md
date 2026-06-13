@@ -1,6 +1,6 @@
 # qoder-cloud-agents-go-sdk
 
-Go SDK for the [Qoder Cloud Agents API](https://docs.qoder.com/cloud-agents/overview). Zero external dependencies — standard library only.
+Go SDK for the [Qoder Cloud Agents API](https://docs.qoder.com/cloud-agents/overview).
 
 ## Installation
 
@@ -155,14 +155,27 @@ client := qoder.New("pt-your-token-here",
 )
 ```
 
+## Development
+
+Run tests, lint and build locally with `make`:
+
+```bash
+make all        # lint + test + build
+make test       # run all tests with race detector and coverage
+make lint       # run golangci-lint
+make ci         # full CI pipeline
+```
+
+Additional runnable examples are in [`example_test.go`](example_test.go).
+
 ## Project Structure
 
 ```
 qoder-cloud-agents-go-sdk/
 ├── qoder.go              # Main Client
 ├── qoderhttp/            # Internal HTTP client (zero deps)
-│   ├── client.go         # Client, Config, Option
-│   ├── request.go        # Fluent request builder
+│   ├── client.go         # Client, Config, Option, fluent request builder
+│   ├── client_test.go    # HTTP client tests
 │   ├── errors.go         # API error parsing
 │   └── sse.go            # SSE stream parser
 ├── types/                # Common types (pagination, metadata)
