@@ -1,8 +1,14 @@
 package events
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
 )
 
 func TestNewUserMessage(t *testing.T) {
@@ -92,4 +98,55 @@ func TestNewCustomToolResultEvent_MarshalError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unmarshalable result, got nil")
 	}
+}
+
+func TestStream_ResumptionUsesAfterIDQueryParam(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/sessions/sess_123/events/stream" {
+			t.Errorf("expected path %q, got %q", "/sessions/sess_123/events/stream", r.URL.Path)
+		}
+		if r.URL.Query().Get("after_id") != "evt_001" {
+			t.Errorf("expected after_id=evt_001, got %q", r.URL.Query().Get("after_id"))
+		}
+		if r.Header.Get("Last-Event-ID") != "" {
+			t.Errorf("expected no Last-Event-ID header, got %q", r.Header.Get("Last-Event-ID"))
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: hello\n\n"))
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	resp, err := api.Stream(context.Background(), "sess_123", "evt_001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+}
+
+func TestStream_NoLastEventIDOmitsAfterID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" {
+			t.Errorf("expected no query params, got %q", r.URL.RawQuery)
+		}
+		if r.Header.Get("Last-Event-ID") != "" {
+			t.Errorf("expected no Last-Event-ID header, got %q", r.Header.Get("Last-Event-ID"))
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: hello\n\n"))
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	resp, err := api.Stream(context.Background(), "sess_123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
 }

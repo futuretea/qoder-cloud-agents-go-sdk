@@ -47,13 +47,13 @@ type Packages struct {
 type CreateEnvRequest struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
-	Config      *EnvConfig     `json:"config,omitempty"`
+	Config      EnvConfig      `json:"config"`
 	Metadata    types.Metadata `json:"metadata,omitempty"`
 }
 
-// NewCreateRequest creates a new CreateEnvRequest with the required name.
-func NewCreateRequest(name string) *CreateEnvRequest {
-	return &CreateEnvRequest{Name: name}
+// NewCreateRequest creates a new CreateEnvRequest with the required name and config.
+func NewCreateRequest(name string, config EnvConfig) *CreateEnvRequest {
+	return &CreateEnvRequest{Name: name, Config: config}
 }
 
 // WithDescription sets the environment description.
@@ -62,9 +62,9 @@ func (r *CreateEnvRequest) WithDescription(desc string) *CreateEnvRequest {
 	return r
 }
 
-// WithConfig sets the environment configuration.
+// WithConfig overrides the environment configuration.
 func (r *CreateEnvRequest) WithConfig(config EnvConfig) *CreateEnvRequest {
-	r.Config = &config
+	r.Config = config
 	return r
 }
 
@@ -175,4 +175,12 @@ func (a *API) Archive(ctx context.Context, id string) (*Environment, error) {
 		return nil, err
 	}
 	return &env, nil
+}
+
+// Delete deletes an environment.
+func (a *API) Delete(ctx context.Context, id string) error {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return err
+	}
+	return a.client.DELETE("/environments/" + id).WithContext(ctx).Do(nil)
 }

@@ -91,16 +91,29 @@ func (a *API) Get(ctx context.Context, id string) (*File, error) {
 	return &file, nil
 }
 
-// GetContent returns a pre-signed download URL for the file content.
-func (a *API) GetContent(ctx context.Context, id string) (string, error) {
+// FileContentResponse holds the pre-signed download URL and its expiration time
+// returned by GET /files/{id}/content.
+type FileContentResponse struct {
+	URL       string `json:"url"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+// GetContent returns a pre-signed download URL and expiration time for the file content.
+func (a *API) GetContent(ctx context.Context, id string) (*FileContentResponse, error) {
 	if err := qoderhttp.ValidateID(id); err != nil {
-		return "", err
+		return nil, err
 	}
-	var result struct {
-		URL string `json:"url"`
-	}
+	var result FileContentResponse
 	if err := a.client.GET("/files/" + id + "/content").WithContext(ctx).Do(&result); err != nil {
-		return "", err
+		return nil, err
 	}
-	return result.URL, nil
+	return &result, nil
+}
+
+// Delete permanently deletes a file by ID.
+func (a *API) Delete(ctx context.Context, id string) error {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return err
+	}
+	return a.client.DELETE("/files/" + id).WithContext(ctx).Do(nil)
 }

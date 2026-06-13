@@ -78,16 +78,14 @@ func ExampleClient_Environments_create() {
 	ctx := context.Background()
 
 	env, err := client.Environments().Create(ctx,
-		environments.NewCreateRequest("default-cloud-env").
-			WithDescription("Default cloud execution environment").
-			WithConfig(environments.EnvConfig{
-				Type:       "cloud",
-				Networking: environments.Networking{Type: "limited"},
-				Packages: environments.Packages{
-					Apt: []string{"curl"},
-					Pip: []string{"requests"},
-				},
-			}),
+		environments.NewCreateRequest("default-cloud-env", environments.EnvConfig{
+			Type:       "cloud",
+			Networking: environments.Networking{Type: "limited"},
+			Packages: environments.Packages{
+				Apt: []string{"curl"},
+				Pip: []string{"requests"},
+			},
+		}).WithDescription("Default cloud execution environment"),
 	)
 	if err != nil {
 		log.Printf("Failed to create environment: %v", err)
@@ -175,12 +173,12 @@ func ExampleClient_Files_getContent() {
 	client := qoder.New("pt-your-token-here")
 	ctx := context.Background()
 
-	url, err := client.Files().GetContent(ctx, "file_xxx")
+	content, err := client.Files().GetContent(ctx, "file_xxx")
 	if err != nil {
 		log.Printf("Failed to get content URL: %v", err)
 		return
 	}
-	log.Printf("Download URL: %s", url)
+	log.Printf("Download URL: %s (expires at %s)", content.URL, content.ExpiresAt)
 }
 
 func ExampleClient_Vaults_create() {

@@ -74,6 +74,7 @@ type Session struct {
 	EnvironmentID string         `json:"environment_id,omitempty"`
 	Status        string         `json:"status"`
 	Metadata      types.Metadata `json:"metadata,omitempty"`
+	Resources     []Resource     `json:"resources,omitempty"`
 	CreatedAt     string         `json:"created_at"`
 	UpdatedAt     string         `json:"updated_at"`
 }
@@ -263,16 +264,29 @@ func (a *API) Archive(ctx context.Context, id string) (*Session, error) {
 	return &session, nil
 }
 
+// CancelResponse represents the response from cancelling a session.
+type CancelResponse struct {
+	Status string `json:"status"`
+}
+
 // Cancel cancels a running session.
-func (a *API) Cancel(ctx context.Context, id string) (*Session, error) {
+func (a *API) Cancel(ctx context.Context, id string) (*CancelResponse, error) {
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}
-	var session Session
-	if err := a.client.POST("/sessions/" + id + "/cancel").WithContext(ctx).Do(&session); err != nil {
+	var resp CancelResponse
+	if err := a.client.POST("/sessions/" + id + "/cancel").WithContext(ctx).Do(&resp); err != nil {
 		return nil, err
 	}
-	return &session, nil
+	return &resp, nil
+}
+
+// Delete permanently deletes a session.
+func (a *API) Delete(ctx context.Context, id string) error {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return err
+	}
+	return a.client.DELETE("/sessions/" + id).WithContext(ctx).Do(nil)
 }
 
 // AddResources attaches file or repository resources to a session.

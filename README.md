@@ -29,12 +29,10 @@ func main() {
 
     // Create an environment
     env, err := client.Environments().Create(ctx,
-        environments.NewCreateRequest("default-cloud-env").
-            WithDescription("Default cloud execution environment").
-            WithConfig(environments.EnvConfig{
-                Type: "cloud",
-                Networking: environments.Networking{Type: "limited"},
-            }),
+        environments.NewCreateRequest("default-cloud-env", environments.EnvConfig{
+            Type: "cloud",
+            Networking: environments.Networking{Type: "limited"},
+        }).WithDescription("Default cloud execution environment"),
     )
     if err != nil {
         log.Fatal(err)
@@ -102,11 +100,11 @@ for {
 
 | Resource | Package | Operations |
 |---|---|---|
-| Agents | `agents` | List, Create, Get, Update, Archive, ListVersions |
-| Environments | `environments` | List, Create, Get, Update, Archive |
-| Sessions | `sessions` | List, Create, Get, Update, Archive, Cancel, AddResources |
+| Agents | `agents` | List, Create, Get, Update, Archive, Delete, ListVersions |
+| Environments | `environments` | List, Create, Get, Update, Archive, Delete |
+| Sessions | `sessions` | List, Create, Get, Update, Archive, Cancel, AddResources, Delete |
 | Events | `events` | Send, SendMessage, List, Stream (SSE) |
-| Files | `files` | List, Upload, Get, GetContent |
+| Files | `files` | List, Upload, Get, GetContent, Delete |
 | Vaults | `vaults` | List, Create, Get, Archive, CreateCredential, ListCredentials, ArchiveCredential |
 | Skills | `skills` | List, Create, Get, Update, Delete, ListVersions |
 | Memory Stores | `memorystores` | Store/Entry/Version CRUD |

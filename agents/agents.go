@@ -36,6 +36,12 @@ type AgentVersion struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// ArchiveResponse represents the response from archiving an agent.
+type ArchiveResponse struct {
+	Archived   bool   `json:"archived"`
+	ArchivedAt string `json:"archived_at"`
+}
+
 // Tool configures built-in tools for an agent.
 type Tool struct {
 	Type         string   `json:"type"`
@@ -231,15 +237,23 @@ func (a *API) Update(ctx context.Context, id string, req *UpdateAgentRequest) (*
 }
 
 // Archive archives an agent.
-func (a *API) Archive(ctx context.Context, id string) (*Agent, error) {
+func (a *API) Archive(ctx context.Context, id string) (*ArchiveResponse, error) {
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}
-	var agent Agent
-	if err := a.client.POST("/agents/" + id + "/archive").WithContext(ctx).Do(&agent); err != nil {
+	var resp ArchiveResponse
+	if err := a.client.POST("/agents/" + id + "/archive").WithContext(ctx).Do(&resp); err != nil {
 		return nil, err
 	}
-	return &agent, nil
+	return &resp, nil
+}
+
+// Delete permanently deletes an agent.
+func (a *API) Delete(ctx context.Context, id string) error {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return err
+	}
+	return a.client.DELETE("/agents/" + id).WithContext(ctx).Do(nil)
 }
 
 // ListVersions returns the version history of an agent.

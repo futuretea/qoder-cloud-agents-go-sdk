@@ -157,11 +157,11 @@ func TestAPI_Stream_InvalidSessionID(t *testing.T) {
 func TestAPI_Stream_ValidSessionID(t *testing.T) {
 	var requestPath string
 	var acceptHeader string
-	var lastEventID string
+	var afterID string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestPath = r.URL.Path
 		acceptHeader = r.Header.Get("Accept")
-		lastEventID = r.Header.Get("Last-Event-ID")
+		afterID = r.URL.Query().Get("after_id")
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("data: hello\n\n"))
@@ -181,15 +181,15 @@ func TestAPI_Stream_ValidSessionID(t *testing.T) {
 	if acceptHeader != "text/event-stream" {
 		t.Errorf("expected Accept header %q, got %q", "text/event-stream", acceptHeader)
 	}
-	if lastEventID != "evt_001" {
-		t.Errorf("expected Last-Event-ID header %q, got %q", "evt_001", lastEventID)
+	if afterID != "evt_001" {
+		t.Errorf("expected after_id query param %q, got %q", "evt_001", afterID)
 	}
 }
 
 func TestAPI_Stream_LastEventID_EmptySkipped(t *testing.T) {
-	var lastEventID string
+	var afterID string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lastEventID = r.Header.Get("Last-Event-ID")
+		afterID = r.URL.Query().Get("after_id")
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("data: hello\n\n"))
@@ -203,8 +203,8 @@ func TestAPI_Stream_LastEventID_EmptySkipped(t *testing.T) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if lastEventID != "" {
-		t.Errorf("expected no Last-Event-ID header for empty value, got %q", lastEventID)
+	if afterID != "" {
+		t.Errorf("expected no after_id query param for empty value, got %q", afterID)
 	}
 }
 

@@ -130,7 +130,8 @@ func (a *API) List(ctx context.Context, sessionID string, params *types.ListPara
 // The caller is responsible for closing the response body via SSEStream.Close().
 //
 // An optional lastEventID can be provided for SSE resumption. When set, the
-// server replays events that occurred after the event with the given ID.
+// after_id query parameter is sent and the server replays events that occurred
+// after the event with the given ID.
 //
 // Usage:
 //
@@ -156,7 +157,7 @@ func (a *API) Stream(ctx context.Context, sessionID string, lastEventID ...strin
 		WithHeader("Accept", "text/event-stream").
 		WithContext(ctx)
 	if len(lastEventID) > 0 && lastEventID[0] != "" {
-		req = req.WithHeader("Last-Event-ID", lastEventID[0])
+		req = req.WithQuery("after_id", lastEventID[0])
 	}
 	return req.DoWithResponse()
 }
