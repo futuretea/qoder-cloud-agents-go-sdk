@@ -273,7 +273,7 @@ func TestPostMultipart_FieldOrdering(t *testing.T) {
 		if idxA == -1 || idxB == -1 || idxC == -1 {
 			t.Errorf("expected all fields in body, got a=%d b=%d c=%d", idxA, idxB, idxC)
 		}
-		if !(idxA < idxB && idxB < idxC) {
+		if idxA >= idxB || idxB >= idxC {
 			t.Errorf("expected fields sorted a < b < c in body, got a=%d b=%d c=%d", idxA, idxB, idxC)
 		}
 

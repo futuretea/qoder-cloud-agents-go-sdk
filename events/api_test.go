@@ -217,7 +217,7 @@ func TestNewAPI(t *testing.T) {
 
 func TestStreamEvent_TypeAlias(t *testing.T) {
 	// StreamEvent is a type alias for qoderhttp.SSEEvent.
-	var evt StreamEvent = qoderhttp.SSEEvent{ID: "evt_001"}
+	evt := StreamEvent(qoderhttp.SSEEvent{ID: "evt_001"})
 	if evt.ID != "evt_001" {
 		t.Errorf("expected ID evt_001, got %s", evt.ID)
 	}

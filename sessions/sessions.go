@@ -107,7 +107,7 @@ type CreateSessionRequest struct {
 	Resources            []Resource     `json:"resources,omitempty"`
 	VaultIDs             []string       `json:"vault_ids,omitempty"`
 	MemoryStoreIDs       []string       `json:"memory_store_ids,omitempty"`
-	EnvironmentVariables string `json:"environment_variables,omitempty"`
+	EnvironmentVariables string         `json:"environment_variables,omitempty"`
 	// Environment, when set, provides an inline environment configuration.
 	// When both EnvironmentID and Environment are set, EnvironmentID takes precedence.
 	// The value should match the shape of CreateEnvironmentRequest (name, description, config, metadata).
