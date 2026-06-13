@@ -30,7 +30,13 @@ const (
 )
 
 // Client is the main entry point for the Qoder Cloud Agents API.
+//
+// WithBaseURL and WithHTTPClient are not safe for concurrent use with API
+// accessors (Agents, Sessions, Events, etc.). Configure the Client fully
+// before passing it to multiple goroutines.
 type Client struct {
+	mu sync.Mutex // guards events and http during reconfiguration
+
 	http       httpclient.Client
 	token      string
 	baseURL    string
@@ -61,12 +67,30 @@ type Option func(*Client)
 
 // rebuildHTTP recreates the internal HTTP client from the current Client state.
 // It is called by Option functions after mutating configuration fields.
+//
+// NOTE: When options are applied after lazy-initialized API accessors have
+// already been called, only the shared httpclient.Client (c.http) is replaced.
+// Events.Stream() receives updated baseURL/token via UpdateStreamConfig, but
+// other API structs (agents, sessions, environments, files, vaults, skills,
+// memorystores, models) hold a snapshot of c.http captured at their first
+// access. Their non-streaming methods will continue using the old client until
+// the SDK is restructured to support dynamic reconfiguration.
 func (c *Client) rebuildHTTP() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.http = qoderhttp.NewClient(&qoderhttp.Config{
 		BaseURL:    c.baseURL,
 		Token:      c.token,
 		HTTPClient: c.httpClient,
 	})
+	// Keep the Events streaming config in sync when options change.
+	// The Events API is lazy-initialized via sync.Once; if options are
+	// applied after the first Events() call, the SSE raw-HTTP path would
+	// otherwise use stale baseURL/token/httpClient from the initial snapshot.
+	if c.events != nil {
+		c.events.UpdateStreamConfig(c.baseURL, c.token, c.httpClient)
+	}
 }
 
 // WithHTTPClient sets a custom *http.Client for connection pooling or testing.
@@ -138,7 +162,9 @@ func (c *Client) Events() *events.API {
 		if hc, ok := c.httpClient.(*http.Client); ok {
 			opts = append(opts, events.WithHTTPClient(hc))
 		}
+		c.mu.Lock()
 		c.events = events.NewAPI(c.http, opts...)
+		c.mu.Unlock()
 	})
 	return c.events
 }

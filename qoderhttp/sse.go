@@ -147,10 +147,8 @@ func (s *SSEStream) parseNext() (*SSEEvent, error) {
 		case "data":
 			if evt.Data != nil {
 				evt.Data = append(evt.Data, '\n')
-				evt.Data = append(evt.Data, value...)
-			} else {
-				evt.Data = []byte(value)
 			}
+			evt.Data = append(evt.Data, value...)
 		}
 	}
 }

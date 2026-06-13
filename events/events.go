@@ -132,6 +132,19 @@ func NewAPI(client httpclient.Client, opts ...Option) *API {
 	return a
 }
 
+// UpdateStreamConfig refreshes the streaming-specific configuration (baseURL,
+// token, and raw *http.Client) from the parent Client. This is called by
+// qoder.Client.rebuildHTTP when options change, keeping the SSE raw-HTTP path
+// in sync with the current Client state after the Events API has already been
+// lazy-initialized via sync.Once.
+func (a *API) UpdateStreamConfig(baseURL, token string, rawHTTPClient httpclient.Doer) {
+	a.baseURL = baseURL
+	a.token = token
+	if hc, ok := rawHTTPClient.(*http.Client); ok {
+		a.httpClient = hc
+	}
+}
+
 // Send sends one or more user message events to a session.
 func (a *API) Send(ctx context.Context, sessionID string, req *SendEventRequest) error {
 	if err := qoderhttp.ValidateID(sessionID); err != nil {
