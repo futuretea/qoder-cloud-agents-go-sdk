@@ -1,20 +1,20 @@
 # qoder-cloud-agents-go-sdk
 
-Go SDK for the [Qoder Cloud Agents API](https://docs.qoder.com/cloud-agents/overview).
+[Qoder Cloud Agents API](https://docs.qoder.com/cloud-agents/overview) 的 Go SDK。
 
-[中文 README](README.zh-CN.md)
+[English README](README.md)
 
-## Requirements
+## 环境要求
 
-- Go 1.24.1 or later
+- Go 1.24.1 或更高版本
 
-## Installation
+## 安装
 
 ```bash
 go get github.com/futuretea/qoder-cloud-agents-go-sdk
 ```
 
-## Quick Start
+## 快速开始
 
 ```go
 package main
@@ -33,7 +33,7 @@ func main() {
     ctx := context.Background()
     client := qoder.New("pt-your-token-here")
 
-    // Create an environment
+    // 创建运行环境
     env, err := client.Environments().Create(ctx,
         environments.NewCreateRequest("default-cloud-env", environments.EnvConfig{
             Type: "cloud",
@@ -44,7 +44,7 @@ func main() {
         log.Fatal(err)
     }
 
-    // Create an agent
+    // 创建 Agent
     agent, err := client.Agents().Create(ctx,
         agents.NewCreateRequest("doc-agent", "ultimate").
             WithSystem("You are a documentation assistant.").
@@ -57,7 +57,7 @@ func main() {
         log.Fatal(err)
     }
 
-    // Create a session
+    // 创建会话
     session, err := client.Sessions().Create(ctx,
         sessions.NewCreateRequest(agent.ID).
             WithEnvironment(env.ID).
@@ -67,7 +67,7 @@ func main() {
         log.Fatal(err)
     }
 
-    // Send a message
+    // 发送消息
     err = client.Events().SendMessage(ctx, session.ID, "Generate API documentation.")
     if err != nil {
         log.Fatal(err)
@@ -75,7 +75,7 @@ func main() {
 }
 ```
 
-## SSE Streaming
+## SSE 流式接收
 
 ```go
 import (
@@ -102,9 +102,9 @@ for {
 }
 ```
 
-## Resources
+## 资源与操作
 
-| Resource | Package | Operations |
+| 资源 | 包 | 支持操作 |
 |---|---|---|
 | Agents | `agents` | List, Create, Get, Update, Archive, Delete, ListVersions |
 | Environments | `environments` | List, Create, Get, Update, Archive, Delete |
@@ -116,7 +116,7 @@ for {
 | Memory Stores | `memorystores` | Store/Entry/Version CRUD |
 | Models | `models` | List |
 
-## Error Handling
+## 错误处理
 
 ```go
 import "github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -139,9 +139,9 @@ if err != nil {
 }
 ```
 
-## Advanced Configuration
+## 高级配置
 
-### Custom HTTP Client
+### 自定义 HTTP Client
 
 ```go
 import (
@@ -154,7 +154,7 @@ client := qoder.New("pt-your-token-here",
 )
 ```
 
-### Custom Base URL
+### 自定义 Base URL
 
 ```go
 client := qoder.New("pt-your-token-here",
@@ -162,47 +162,47 @@ client := qoder.New("pt-your-token-here",
 )
 ```
 
-## Development
+## 本地开发
 
-Run tests, lint and build locally with `make`:
+使用 `make` 运行测试、lint 和构建：
 
 ```bash
 make all        # lint + test + build
-make test       # run all tests with race detector and coverage
-make lint       # run golangci-lint
-make ci         # full CI pipeline
+make test       # 运行所有测试（带 race detector 和覆盖率）
+make lint       # 运行 golangci-lint
+make ci         # 完整 CI 流水线
 ```
 
-Additional runnable examples are in [`example_test.go`](example_test.go).
+更多可运行示例见 [`example_test.go`](example_test.go)。
 
-## Project Structure
+## 项目结构
 
 ```
 qoder-cloud-agents-go-sdk/
-├── qoder.go              # Main Client
-├── qoderhttp/            # HTTP helpers built on github.com/futuretea/go-http-client
-│   ├── client.go         # Client factory, Config, Option, and fluent request helpers
-│   ├── client_test.go    # HTTP client tests
-│   ├── errors.go         # API error parsing
-│   └── sse.go            # SSE stream parser
-├── types/                # Common types (pagination, metadata)
-├── agents/               # Agents resource
-├── environments/         # Environments resource
-├── sessions/             # Sessions resource
-├── events/               # Events resource + SSE streaming
-├── files/                # Files resource + multipart upload
-├── vaults/               # Vaults resource + credentials
-├── skills/               # Skills resource + .zip upload
-├── memorystores/         # Memory Stores (Store/Entry/Version)
-└── models/               # Models resource
+├── qoder.go              # 主 Client
+├── qoderhttp/            # 基于 github.com/futuretea/go-http-client 的 HTTP 辅助库
+│   ├── client.go         # Client 工厂、Config、Option 与流式请求辅助函数
+│   ├── client_test.go    # HTTP client 测试
+│   ├── errors.go         # API 错误解析
+│   └── sse.go            # SSE 流解析器
+├── types/                # 公共类型（分页、元数据）
+├── agents/               # Agents 资源
+├── environments/         # Environments 资源
+├── sessions/             # Sessions 资源
+├── events/               # Events 资源 + SSE 流式
+├── files/                # Files 资源 + 多文件上传
+├── vaults/               # Vaults 资源 + 凭证管理
+├── skills/               # Skills 资源 + .zip 上传
+├── memorystores/         # Memory Stores（Store/Entry/Version）
+└── models/               # Models 资源
 ```
 
-## API Documentation
+## API 文档
 
-- [Qoder Cloud Agents Overview](https://docs.qoder.com/cloud-agents/overview)
-- [API Conventions](https://docs.qoder.com/cloud-agents/api/conventions/overview)
-- [Authentication](https://docs.qoder.com/cloud-agents/api/conventions/authentication)
+- [Qoder Cloud Agents 概览](https://docs.qoder.com/cloud-agents/overview)
+- [API 约定](https://docs.qoder.com/cloud-agents/api/conventions/overview)
+- [认证方式](https://docs.qoder.com/cloud-agents/api/conventions/authentication)
 
-## License
+## 许可证
 
 MIT License
