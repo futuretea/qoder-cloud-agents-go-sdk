@@ -24,4 +24,9 @@ coverage.txt
 coverage.html
 *.cov
 
+# E2E runtime inventory
+e2e/.e2e-resources.jsonl
+
 third-party-projects/
+enhancements/
+.auto-runs/

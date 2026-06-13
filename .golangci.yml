@@ -49,6 +49,8 @@ formatters:
 run:
   timeout: 5m
   tests: true
+  build-tags:
+    - e2e
 
 issues:
   max-issues-per-linter: 0
