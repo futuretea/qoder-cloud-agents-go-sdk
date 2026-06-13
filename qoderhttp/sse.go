@@ -35,6 +35,7 @@ type SSEStream struct {
 	// ctx.Done() over the parse result channel.
 	cachedEvent *SSEEvent
 	cachedErr   error
+	cachedMu    sync.Mutex
 }
 
 // NewSSEStream creates a new SSE stream from an HTTP response.
@@ -58,12 +59,15 @@ func NewSSEStream(resp *http.Response) *SSEStream {
 // the next call to Next().
 func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
 	// Return a cached event from a previous context-cancelled call.
+	s.cachedMu.Lock()
 	if s.cachedEvent != nil || s.cachedErr != nil {
 		evt, err := s.cachedEvent, s.cachedErr
 		s.cachedEvent = nil
 		s.cachedErr = nil
+		s.cachedMu.Unlock()
 		return evt, err
 	}
+	s.cachedMu.Unlock()
 
 	type parseResult struct {
 		evt *SSEEvent
@@ -85,8 +89,10 @@ func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
 		// Drain the channel to capture any concurrently-completed parse.
 		// Close() unblocks the scanner, guaranteeing the goroutine sends.
 		r := <-ch
+		s.cachedMu.Lock()
 		s.cachedEvent = r.evt
 		s.cachedErr = r.err
+		s.cachedMu.Unlock()
 		return nil, ctx.Err()
 	case r := <-ch:
 		return r.evt, r.err

@@ -244,6 +244,9 @@ func (a *API) Archive(ctx context.Context, id string) (*Agent, error) {
 
 // ListVersions returns the version history of an agent.
 func (a *API) ListVersions(ctx context.Context, id string, params *types.ListParams) (*types.PaginatedResponse[AgentVersion], error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	req := qoderhttp.ApplyListParams(a.client.GET("/agents/"+id+"/versions"), params)
 	var result types.PaginatedResponse[AgentVersion]
 	if err := req.WithContext(ctx).Do(&result); err != nil {

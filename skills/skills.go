@@ -131,6 +131,9 @@ func (a *API) Delete(ctx context.Context, id string) error {
 
 // ListVersions returns the version history of a skill.
 func (a *API) ListVersions(ctx context.Context, id string, params *types.ListParams) (*types.PaginatedResponse[Skill], error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	req := qoderhttp.ApplyListParams(a.client.GET("/skills/"+id+"/versions"), params)
 	var result types.PaginatedResponse[Skill]
 	if err := req.WithContext(ctx).Do(&result); err != nil {

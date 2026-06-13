@@ -140,6 +140,9 @@ func (a *API) Archive(ctx context.Context, id string) (*Vault, error) {
 
 // CreateCredential adds a new credential to an existing vault.
 func (a *API) CreateCredential(ctx context.Context, vaultID string, req *CreateCredentialRequest) (*Credential, error) {
+	if err := qoderhttp.ValidateID(vaultID); err != nil {
+		return nil, err
+	}
 	var cred Credential
 	if err := a.client.POST("/vaults/" + vaultID + "/credentials").WithJSON(req).WithContext(ctx).Do(&cred); err != nil {
 		return nil, err
@@ -149,6 +152,9 @@ func (a *API) CreateCredential(ctx context.Context, vaultID string, req *CreateC
 
 // ListCredentials returns the credentials in a vault (secrets are redacted).
 func (a *API) ListCredentials(ctx context.Context, vaultID string, params *types.ListParams) (*types.PaginatedResponse[Credential], error) {
+	if err := qoderhttp.ValidateID(vaultID); err != nil {
+		return nil, err
+	}
 	req := qoderhttp.ApplyListParams(a.client.GET("/vaults/"+vaultID+"/credentials"), params)
 	var result types.PaginatedResponse[Credential]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
@@ -159,6 +165,12 @@ func (a *API) ListCredentials(ctx context.Context, vaultID string, params *types
 
 // ArchiveCredential archives a credential within a vault.
 func (a *API) ArchiveCredential(ctx context.Context, vaultID, credentialID string) (*Credential, error) {
+	if err := qoderhttp.ValidateID(vaultID); err != nil {
+		return nil, err
+	}
+	if err := qoderhttp.ValidateID(credentialID); err != nil {
+		return nil, err
+	}
 	var cred Credential
 	path := "/vaults/" + vaultID + "/credentials/" + credentialID + "/archive"
 	if err := a.client.POST(path).WithContext(ctx).Do(&cred); err != nil {

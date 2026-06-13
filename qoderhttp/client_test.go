@@ -165,6 +165,9 @@ func TestQoderErrorMiddlewareNonJSON(t *testing.T) {
 	if apiErr.ErrorType != "unknown_error" {
 		t.Errorf("expected ErrorType 'unknown_error' for non-JSON body, got %q", apiErr.ErrorType)
 	}
+	if apiErr.Message == "" {
+		t.Error("expected non-empty error message for non-JSON 500 response")
+	}
 	if !apiErr.IsServerError() {
 		t.Error("expected IsServerError to be true")
 	}
@@ -193,8 +196,8 @@ func TestQoderErrorMiddlewareEmptyMessage(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *APIError, got %T: %v", err, err)
 	}
-	if apiErr.ErrorType != "unknown_error" {
-		t.Errorf("expected ErrorType 'unknown_error' for empty message, got %q", apiErr.ErrorType)
+	if apiErr.Message == "" {
+		t.Error("expected non-empty error message for response with empty error message")
 	}
 }
 
@@ -565,6 +568,7 @@ func TestSSEStreamContextCancellation(t *testing.T) {
 		_, _ = pw.Write([]byte("id: evt_001\nevent: agent.message\ndata: hello\n\n"))
 		<-done // block until test signals completion
 	}()
+	defer close(done) // ensure goroutine exits even if test fails
 
 	resp := &http.Response{Body: pr}
 	stream := NewSSEStream(resp)
@@ -587,8 +591,6 @@ func TestSSEStreamContextCancellation(t *testing.T) {
 	if err != context.Canceled {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
-
-	close(done) // signal goroutine to exit cleanly
 }
 
 func TestSSEStreamCommentsAndUnknownFields(t *testing.T) {
@@ -683,6 +685,7 @@ func TestSSEStreamNextAfterClose(t *testing.T) {
 		defer func() { _ = pw.Close() }()
 		<-done // block until test signals, so no data is buffered
 	}()
+	defer close(done) // ensure goroutine exits even if test fails
 
 	resp := &http.Response{Body: pr}
 	stream := NewSSEStream(resp)
@@ -695,6 +698,36 @@ func TestSSEStreamNextAfterClose(t *testing.T) {
 	if err == nil {
 		t.Error("expected error calling Next() after Close()")
 	}
+}
 
-	close(done) // signal goroutine to exit cleanly
+func TestValidateID(t *testing.T) {
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{name: "valid ID", id: "agent_123", wantErr: false},
+		{name: "valid UUID", id: "550e8400-e29b-41d4-a716-446655440000", wantErr: false},
+		{name: "empty string", id: "", wantErr: true},
+		{name: "contains slash", id: "a/b", wantErr: true},
+		{name: "contains backslash", id: `a\b`, wantErr: true},
+		{name: "contains dot-dot", id: "a..b", wantErr: true},
+		{name: "contains double dot-dot", id: "....", wantErr: true},
+		{name: "starts with slash", id: "/etc/passwd", wantErr: true},
+		{name: "traversal attempt", id: "../../etc/passwd", wantErr: true},
+		{name: "URL-encoded slash", id: "a%2fb", wantErr: true},
+		{name: "URL-encoded slash uppercase", id: "a%2Fb", wantErr: true},
+		{name: "URL-encoded backslash", id: `a%5cb`, wantErr: true},
+		{name: "URL-encoded dot-dot", id: "a%2e%2eb", wantErr: true},
+		{name: "URL-encoded mixed case dot-dot", id: "%2E%2E", wantErr: true},
+		{name: "percent sign in normal ID", id: "agent_50%_discount", wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateID(tt.id)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateID(%q) error = %v, wantErr = %v", tt.id, err, tt.wantErr)
+			}
+		})
+	}
 }

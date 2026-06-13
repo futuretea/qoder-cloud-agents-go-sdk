@@ -79,6 +79,14 @@ func QoderErrorMiddleware(resp *http.Response) error {
 		return nil
 	}
 
+	if resp.Body == nil {
+		return &APIError{
+			StatusCode: resp.StatusCode,
+			ErrorType:  "unknown_error",
+			Message:    "empty response body",
+		}
+	}
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize+1))
 	if err != nil {
 		resp.Body = io.NopCloser(bytes.NewReader(nil))

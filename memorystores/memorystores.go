@@ -177,6 +177,9 @@ func (a *API) Archive(ctx context.Context, id string) (*MemoryStore, error) {
 
 // Delete permanently deletes a memory store and all entries/versions.
 func (a *API) Delete(ctx context.Context, id string) error {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return err
+	}
 	return a.client.DELETE("/memory_stores/" + id).WithContext(ctx).Do(nil)
 }
 
@@ -184,6 +187,9 @@ func (a *API) Delete(ctx context.Context, id string) error {
 
 // ListEntries returns active entries in a memory store (content is not returned in list).
 func (a *API) ListEntries(ctx context.Context, storeID string, params *types.ListParams) (*types.PaginatedResponse[MemoryEntry], error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
 	req := qoderhttp.ApplyListParams(a.client.GET("/memory_stores/"+storeID+"/memories"), params)
 	var result types.PaginatedResponse[MemoryEntry]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
@@ -194,6 +200,9 @@ func (a *API) ListEntries(ctx context.Context, storeID string, params *types.Lis
 
 // CreateEntry creates a new memory entry in a store.
 func (a *API) CreateEntry(ctx context.Context, storeID string, req *CreateEntryRequest) (*MemoryEntry, error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
 	var entry MemoryEntry
 	path := "/memory_stores/" + storeID + "/memories"
 	if err := a.client.POST(path).WithJSON(req).WithContext(ctx).Do(&entry); err != nil {
@@ -204,6 +213,12 @@ func (a *API) CreateEntry(ctx context.Context, storeID string, req *CreateEntryR
 
 // GetEntry retrieves a memory entry by ID, including its content.
 func (a *API) GetEntry(ctx context.Context, storeID, entryID string) (*MemoryEntry, error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
+	if err := qoderhttp.ValidateID(entryID); err != nil {
+		return nil, err
+	}
 	var entry MemoryEntry
 	path := "/memory_stores/" + storeID + "/memories/" + entryID
 	if err := a.client.GET(path).WithContext(ctx).Do(&entry); err != nil {
@@ -214,6 +229,12 @@ func (a *API) GetEntry(ctx context.Context, storeID, entryID string) (*MemoryEnt
 
 // UpdateEntry updates a memory entry, creating a new version.
 func (a *API) UpdateEntry(ctx context.Context, storeID, entryID string, req *UpdateEntryRequest) (*MemoryEntry, error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
+	if err := qoderhttp.ValidateID(entryID); err != nil {
+		return nil, err
+	}
 	var entry MemoryEntry
 	path := "/memory_stores/" + storeID + "/memories/" + entryID
 	if err := a.client.PUT(path).WithJSON(req).WithContext(ctx).Do(&entry); err != nil {
@@ -224,6 +245,12 @@ func (a *API) UpdateEntry(ctx context.Context, storeID, entryID string, req *Upd
 
 // DeleteEntry deletes a memory entry, creating a deleted version record.
 func (a *API) DeleteEntry(ctx context.Context, storeID, entryID string) (*MemoryEntry, error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
+	if err := qoderhttp.ValidateID(entryID); err != nil {
+		return nil, err
+	}
 	var entry MemoryEntry
 	path := "/memory_stores/" + storeID + "/memories/" + entryID
 	if err := a.client.DELETE(path).WithContext(ctx).Do(&entry); err != nil {
@@ -236,6 +263,9 @@ func (a *API) DeleteEntry(ctx context.Context, storeID, entryID string) (*Memory
 
 // ListVersions returns version history for a memory store.
 func (a *API) ListVersions(ctx context.Context, storeID string, params *types.ListParams) (*types.PaginatedResponse[Version], error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
 	req := qoderhttp.ApplyListParams(a.client.GET("/memory_stores/"+storeID+"/versions"), params)
 	var result types.PaginatedResponse[Version]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
@@ -246,6 +276,12 @@ func (a *API) ListVersions(ctx context.Context, storeID string, params *types.Li
 
 // GetVersion retrieves a specific version by ID. Returns content if not redacted.
 func (a *API) GetVersion(ctx context.Context, storeID, versionID string) (*Version, error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
+	if err := qoderhttp.ValidateID(versionID); err != nil {
+		return nil, err
+	}
 	var version Version
 	path := "/memory_stores/" + storeID + "/versions/" + versionID
 	if err := a.client.GET(path).WithContext(ctx).Do(&version); err != nil {
@@ -256,6 +292,12 @@ func (a *API) GetVersion(ctx context.Context, storeID, versionID string) (*Versi
 
 // RedactVersion permanently redacts the content of a version.
 func (a *API) RedactVersion(ctx context.Context, storeID, versionID string) (*Version, error) {
+	if err := qoderhttp.ValidateID(storeID); err != nil {
+		return nil, err
+	}
+	if err := qoderhttp.ValidateID(versionID); err != nil {
+		return nil, err
+	}
 	var version Version
 	path := "/memory_stores/" + storeID + "/versions/" + versionID + "/redact"
 	if err := a.client.POST(path).WithContext(ctx).Do(&version); err != nil {

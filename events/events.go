@@ -66,6 +66,9 @@ func NewAPI(client httpclient.Client) *API {
 
 // Send sends one or more user message events to a session.
 func (a *API) Send(ctx context.Context, sessionID string, req *SendEventRequest) error {
+	if err := qoderhttp.ValidateID(sessionID); err != nil {
+		return err
+	}
 	return a.client.POST("/sessions/" + sessionID + "/events").WithJSON(req).WithContext(ctx).Do(nil)
 }
 
@@ -76,6 +79,9 @@ func (a *API) SendMessage(ctx context.Context, sessionID, content string) error 
 
 // List returns events for a session in chronological order.
 func (a *API) List(ctx context.Context, sessionID string, params *types.ListParams) (*types.PaginatedResponse[map[string]interface{}], error) {
+	if err := qoderhttp.ValidateID(sessionID); err != nil {
+		return nil, err
+	}
 	req := qoderhttp.ApplyListParams(a.client.GET("/sessions/"+sessionID+"/events"), params)
 	var result types.PaginatedResponse[map[string]interface{}]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
@@ -100,6 +106,9 @@ func (a *API) List(ctx context.Context, sessionID string, params *types.ListPara
 //	    ...
 //	}
 func (a *API) Stream(ctx context.Context, sessionID string) (*http.Response, error) {
+	if err := qoderhttp.ValidateID(sessionID); err != nil {
+		return nil, err
+	}
 	path := "/sessions/" + sessionID + "/events/stream"
 	return a.client.GET(path).
 		WithHeader("Accept", "text/event-stream").
