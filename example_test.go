@@ -207,7 +207,7 @@ func ExampleClient_Vaults_addCredential() {
 	client := qoder.New("pt-your-token-here")
 	ctx := context.Background()
 
-	cred := vaults.NewCredential("https://mcp2.example.com/mcp", "streamable_http", "another-secret")
+	cred := vaults.NewStaticBearerCredential("https://mcp2.example.com/mcp", "streamable_http", "another-secret")
 	credential, err := client.Vaults().CreateCredential(ctx, "vault_xxx", &cred)
 	if err != nil {
 		log.Printf("Failed to add credential: %v", err)

@@ -74,8 +74,8 @@ type CreateCredentialRequest struct {
 	AccessToken  string `json:"access_token"`
 }
 
-// NewCredential creates a new credential for an MCP server.
-func NewCredential(mcpServerURL, protocol, accessToken string) CreateCredentialRequest {
+// NewStaticBearerCredential creates a new static bearer credential for an MCP server.
+func NewStaticBearerCredential(mcpServerURL, protocol, accessToken string) CreateCredentialRequest {
 	return CreateCredentialRequest{
 		MCPServerURL: mcpServerURL,
 		Protocol:     protocol,
@@ -116,6 +116,9 @@ func (a *API) Create(ctx context.Context, req *CreateVaultRequest, idempotencyKe
 
 // Get retrieves a single vault by ID.
 func (a *API) Get(ctx context.Context, id string) (*Vault, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var vault Vault
 	if err := a.client.GET("/vaults/" + id).WithContext(ctx).Do(&vault); err != nil {
 		return nil, err
@@ -125,6 +128,9 @@ func (a *API) Get(ctx context.Context, id string) (*Vault, error) {
 
 // Archive archives a vault.
 func (a *API) Archive(ctx context.Context, id string) (*Vault, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var vault Vault
 	if err := a.client.POST("/vaults/" + id + "/archive").WithContext(ctx).Do(&vault); err != nil {
 		return nil, err

@@ -4,8 +4,8 @@
 package types
 
 import (
-	"fmt"
 	"net/url"
+	"strconv"
 )
 
 // PaginatedResponse is a generic cursor-paginated list response.
@@ -32,7 +32,7 @@ type ListParams struct {
 func (p ListParams) ToQuery() url.Values {
 	q := url.Values{}
 	if p.Limit > 0 {
-		q.Set("limit", fmt.Sprintf("%d", p.Limit))
+		q.Set("limit", strconv.Itoa(p.Limit))
 	}
 	if p.AfterID != "" {
 		q.Set("after_id", p.AfterID)

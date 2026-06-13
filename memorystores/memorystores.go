@@ -153,6 +153,9 @@ func (a *API) Create(ctx context.Context, req *CreateStoreRequest, idempotencyKe
 
 // Get retrieves a single memory store by ID.
 func (a *API) Get(ctx context.Context, id string) (*MemoryStore, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var store MemoryStore
 	if err := a.client.GET("/memory_stores/" + id).WithContext(ctx).Do(&store); err != nil {
 		return nil, err
@@ -162,6 +165,9 @@ func (a *API) Get(ctx context.Context, id string) (*MemoryStore, error) {
 
 // Archive archives a memory store.
 func (a *API) Archive(ctx context.Context, id string) (*MemoryStore, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var store MemoryStore
 	if err := a.client.POST("/memory_stores/" + id + "/archive").WithContext(ctx).Do(&store); err != nil {
 		return nil, err

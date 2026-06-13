@@ -208,6 +208,9 @@ func (a *API) Create(ctx context.Context, req *CreateAgentRequest, idempotencyKe
 
 // Get retrieves a single agent by ID.
 func (a *API) Get(ctx context.Context, id string) (*Agent, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var agent Agent
 	if err := a.client.GET("/agents/" + id).WithContext(ctx).Do(&agent); err != nil {
 		return nil, err
@@ -217,6 +220,9 @@ func (a *API) Get(ctx context.Context, id string) (*Agent, error) {
 
 // Update updates an existing agent. Requires the current version for optimistic concurrency.
 func (a *API) Update(ctx context.Context, id string, req *UpdateAgentRequest) (*Agent, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var agent Agent
 	if err := a.client.PUT("/agents/" + id).WithJSON(req).WithContext(ctx).Do(&agent); err != nil {
 		return nil, err
@@ -226,6 +232,9 @@ func (a *API) Update(ctx context.Context, id string, req *UpdateAgentRequest) (*
 
 // Archive archives an agent.
 func (a *API) Archive(ctx context.Context, id string) (*Agent, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var agent Agent
 	if err := a.client.POST("/agents/" + id + "/archive").WithContext(ctx).Do(&agent); err != nil {
 		return nil, err

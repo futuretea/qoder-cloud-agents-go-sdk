@@ -590,3 +590,111 @@ func TestSSEStreamContextCancellation(t *testing.T) {
 
 	close(done) // signal goroutine to exit cleanly
 }
+
+func TestSSEStreamCommentsAndUnknownFields(t *testing.T) {
+	sseData := ": this is a comment\ndata: valid-data\n\n:id: ignored-field\nevent: agent.message\ndata: hello\nretry: 3000\n\n"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(sseData))
+	}))
+	defer srv.Close()
+
+	c := NewClient(&Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+
+	resp, err := c.GET("/stream").WithHeader("Accept", "text/event-stream").DoWithResponse()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	stream := NewSSEStream(resp)
+	defer func() { _ = stream.Close() }()
+
+	evt1, err := stream.Next(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error reading event 1: %v", err)
+	}
+	if string(evt1.Data) != "valid-data" {
+		t.Errorf("expected data 'valid-data', got '%s'", string(evt1.Data))
+	}
+	if evt1.Event != "" {
+		t.Errorf("expected empty event for comment-prefixed line, got '%s'", evt1.Event)
+	}
+
+	evt2, err := stream.Next(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error reading event 2: %v", err)
+	}
+	if evt2.Event != "agent.message" {
+		t.Errorf("expected event 'agent.message', got '%s'", evt2.Event)
+	}
+	// Unknown field "retry" should be silently ignored
+}
+
+func TestPostMultipartErrorResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "invalid_request_error",
+				"message": "invalid purpose",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(&Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+
+	var result map[string]string
+	err := PostMultipart(context.Background(), c, "/files", "file", "test.txt", []byte("content"),
+		map[string]string{"purpose": "invalid"}, nil, &result)
+	if err == nil {
+		t.Fatal("expected error for 400 response, got nil")
+	}
+	apiErr, ok := IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsInvalidRequest() {
+		t.Error("expected IsInvalidRequest to be true")
+	}
+	if apiErr.Message != "invalid purpose" {
+		t.Errorf("expected 'invalid purpose', got '%s'", apiErr.Message)
+	}
+}
+
+func TestIsAPIErrorNonWrapping(t *testing.T) {
+	original := &APIError{StatusCode: 404, ErrorType: "not_found_error", Message: "not found"}
+	wrapped := fmt.Errorf("response middleware error: %v", original)
+	_, ok := IsAPIError(wrapped)
+	if ok {
+		t.Error("expected IsAPIError to return false for non-wrapping error format")
+	}
+}
+
+func TestSSEStreamNextAfterClose(t *testing.T) {
+	pr, pw := io.Pipe()
+	done := make(chan struct{})
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		<-done // block until test signals, so no data is buffered
+	}()
+
+	resp := &http.Response{Body: pr}
+	stream := NewSSEStream(resp)
+
+	if err := stream.Close(); err != nil {
+		t.Fatalf("unexpected close error: %v", err)
+	}
+
+	_, err := stream.Next(t.Context())
+	if err == nil {
+		t.Error("expected error calling Next() after Close()")
+	}
+
+	close(done) // signal goroutine to exit cleanly
+}

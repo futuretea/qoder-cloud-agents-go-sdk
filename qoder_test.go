@@ -77,12 +77,18 @@ func TestResourceAccessors(t *testing.T) {
 		if e == nil {
 			t.Error("expected Environments to be non-nil")
 		}
+		if client.Environments() != e {
+			t.Error("expected Environments to be cached")
+		}
 	})
 
 	t.Run("Sessions", func(t *testing.T) {
 		s := client.Sessions()
 		if s == nil {
 			t.Error("expected Sessions to be non-nil")
+		}
+		if client.Sessions() != s {
+			t.Error("expected Sessions to be cached")
 		}
 	})
 
@@ -91,12 +97,18 @@ func TestResourceAccessors(t *testing.T) {
 		if e == nil {
 			t.Error("expected Events to be non-nil")
 		}
+		if client.Events() != e {
+			t.Error("expected Events to be cached")
+		}
 	})
 
 	t.Run("Files", func(t *testing.T) {
 		f := client.Files()
 		if f == nil {
 			t.Error("expected Files to be non-nil")
+		}
+		if client.Files() != f {
+			t.Error("expected Files to be cached")
 		}
 	})
 
@@ -105,12 +117,18 @@ func TestResourceAccessors(t *testing.T) {
 		if v == nil {
 			t.Error("expected Vaults to be non-nil")
 		}
+		if client.Vaults() != v {
+			t.Error("expected Vaults to be cached")
+		}
 	})
 
 	t.Run("Skills", func(t *testing.T) {
 		s := client.Skills()
 		if s == nil {
 			t.Error("expected Skills to be non-nil")
+		}
+		if client.Skills() != s {
+			t.Error("expected Skills to be cached")
 		}
 	})
 
@@ -119,12 +137,18 @@ func TestResourceAccessors(t *testing.T) {
 		if m == nil {
 			t.Error("expected MemoryStores to be non-nil")
 		}
+		if client.MemoryStores() != m {
+			t.Error("expected MemoryStores to be cached")
+		}
 	})
 
 	t.Run("Models", func(t *testing.T) {
 		m := client.Models()
 		if m == nil {
 			t.Error("expected Models to be non-nil")
+		}
+		if client.Models() != m {
+			t.Error("expected Models to be cached")
 		}
 	})
 }

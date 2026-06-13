@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"mime/multipart"
+	"strings"
 	"time"
 
 	httpclient "github.com/futuretea/go-http-client"
@@ -93,6 +94,19 @@ func ApplyIdempotencyKey(req *httpclient.RequestBuilder, idempotencyKey ...strin
 		req = req.WithHeader("Idempotency-Key", idempotencyKey[0])
 	}
 	return req
+}
+
+// ValidateID returns an error if the given resource ID is empty or contains
+// path traversal sequences. It provides defense-in-depth protection when
+// IDs are embedded in URL paths.
+func ValidateID(id string) error {
+	if id == "" {
+		return fmt.Errorf("qoderhttp: resource ID must not be empty")
+	}
+	if strings.Contains(id, "/") || strings.Contains(id, "\\") || strings.Contains(id, "..") {
+		return fmt.Errorf("qoderhttp: resource ID contains invalid characters: %q", id)
+	}
+	return nil
 }
 
 // PostMultipart sends a multipart/form-data POST request.

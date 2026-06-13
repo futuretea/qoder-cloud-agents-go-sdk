@@ -95,6 +95,9 @@ func (a *API) Create(ctx context.Context, req *CreateSkillRequest, idempotencyKe
 
 // Get retrieves a skill by ID. Set includeContent to true to receive base64-encoded content.
 func (a *API) Get(ctx context.Context, id string, includeContent bool) (*Skill, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	req := a.client.GET("/skills/" + id)
 	if includeContent {
 		req = req.WithQuery("include_content", "true")
@@ -108,6 +111,9 @@ func (a *API) Get(ctx context.Context, id string, includeContent bool) (*Skill, 
 
 // Update updates a skill's metadata (name, description).
 func (a *API) Update(ctx context.Context, id string, req *UpdateSkillRequest) (*Skill, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var skill Skill
 	if err := a.client.PUT("/skills/" + id).WithJSON(req).WithContext(ctx).Do(&skill); err != nil {
 		return nil, err
@@ -117,6 +123,9 @@ func (a *API) Update(ctx context.Context, id string, req *UpdateSkillRequest) (*
 
 // Delete permanently deletes a skill and all its versions.
 func (a *API) Delete(ctx context.Context, id string) error {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return err
+	}
 	return a.client.DELETE("/skills/" + id).WithContext(ctx).Do(nil)
 }
 

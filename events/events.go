@@ -66,8 +66,7 @@ func NewAPI(client httpclient.Client) *API {
 
 // Send sends one or more user message events to a session.
 func (a *API) Send(ctx context.Context, sessionID string, req *SendEventRequest) error {
-	path := "/sessions/" + sessionID + "/events"
-	return a.client.POST(path).WithJSON(req).WithContext(ctx).Do(nil)
+	return a.client.POST("/sessions/" + sessionID + "/events").WithJSON(req).WithContext(ctx).Do(nil)
 }
 
 // SendMessage is a convenience method to send a single user message.

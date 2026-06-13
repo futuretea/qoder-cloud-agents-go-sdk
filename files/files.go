@@ -81,6 +81,9 @@ func (a *API) Upload(ctx context.Context, req *UploadFileRequest, idempotencyKey
 
 // Get retrieves file metadata by ID.
 func (a *API) Get(ctx context.Context, id string) (*File, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var file File
 	if err := a.client.GET("/files/" + id).WithContext(ctx).Do(&file); err != nil {
 		return nil, err
@@ -90,6 +93,9 @@ func (a *API) Get(ctx context.Context, id string) (*File, error) {
 
 // GetContent returns a pre-signed download URL for the file content.
 func (a *API) GetContent(ctx context.Context, id string) (string, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return "", err
+	}
 	var result struct {
 		URL string `json:"url"`
 	}

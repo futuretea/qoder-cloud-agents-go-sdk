@@ -28,6 +28,13 @@ type SSEStream struct {
 	body      io.ReadCloser
 	closeOnce sync.Once
 	closeErr  error
+
+	// cachedEvent and cachedErr hold a parsed result that was completed
+	// concurrently with a previous context cancellation, preventing silent
+	// event loss when the select in Next() non-deterministically picks
+	// ctx.Done() over the parse result channel.
+	cachedEvent *SSEEvent
+	cachedErr   error
 }
 
 // NewSSEStream creates a new SSE stream from an HTTP response.
@@ -46,12 +53,18 @@ func NewSSEStream(resp *http.Response) *SSEStream {
 //
 // The context can be used to cancel a blocking read. When the context is
 // cancelled, Next closes the underlying response body to unblock the scanner
-// and returns ctx.Err(). Note that if a parse completes at approximately the
-// same time as context cancellation, the select statement may
-// non-deterministically return ctx.Err() even though an event was available.
-// Callers should treat context cancellation as a terminal signal and not
-// expect further events after cancellation.
+// and returns ctx.Err(). A successfully parsed event that completes
+// concurrently with cancellation is not lost — it is cached and returned on
+// the next call to Next().
 func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
+	// Return a cached event from a previous context-cancelled call.
+	if s.cachedEvent != nil || s.cachedErr != nil {
+		evt, err := s.cachedEvent, s.cachedErr
+		s.cachedEvent = nil
+		s.cachedErr = nil
+		return evt, err
+	}
+
 	type parseResult struct {
 		evt *SSEEvent
 		err error
@@ -69,6 +82,11 @@ func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
 		// Uses Close() (idempotent via sync.Once) so a subsequent
 		// defer stream.Close() by the caller is always safe.
 		_ = s.Close()
+		// Drain the channel to capture any concurrently-completed parse.
+		// Close() unblocks the scanner, guaranteeing the goroutine sends.
+		r := <-ch
+		s.cachedEvent = r.evt
+		s.cachedErr = r.err
 		return nil, ctx.Err()
 	case r := <-ch:
 		return r.evt, r.err

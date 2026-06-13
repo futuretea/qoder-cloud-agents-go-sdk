@@ -162,6 +162,9 @@ func (a *API) Create(ctx context.Context, req *CreateSessionRequest, idempotency
 
 // Get retrieves a single session by ID.
 func (a *API) Get(ctx context.Context, id string) (*Session, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var session Session
 	if err := a.client.GET("/sessions/" + id).WithContext(ctx).Do(&session); err != nil {
 		return nil, err
@@ -171,6 +174,9 @@ func (a *API) Get(ctx context.Context, id string) (*Session, error) {
 
 // Update updates an existing session.
 func (a *API) Update(ctx context.Context, id string, req *UpdateSessionRequest) (*Session, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var session Session
 	if err := a.client.POST("/sessions/" + id).WithJSON(req).WithContext(ctx).Do(&session); err != nil {
 		return nil, err
@@ -180,6 +186,9 @@ func (a *API) Update(ctx context.Context, id string, req *UpdateSessionRequest) 
 
 // Archive archives a session.
 func (a *API) Archive(ctx context.Context, id string) (*Session, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var session Session
 	if err := a.client.POST("/sessions/" + id + "/archive").WithContext(ctx).Do(&session); err != nil {
 		return nil, err
@@ -189,6 +198,9 @@ func (a *API) Archive(ctx context.Context, id string) (*Session, error) {
 
 // Cancel cancels a running session.
 func (a *API) Cancel(ctx context.Context, id string) (*Session, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var session Session
 	if err := a.client.POST("/sessions/" + id + "/cancel").WithContext(ctx).Do(&session); err != nil {
 		return nil, err
@@ -198,6 +210,9 @@ func (a *API) Cancel(ctx context.Context, id string) (*Session, error) {
 
 // AddResources attaches file or repository resources to a session.
 func (a *API) AddResources(ctx context.Context, id string, resources []Resource) (*Session, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	body := map[string][]Resource{"resources": resources}
 	var session Session
 	if err := a.client.POST("/sessions/" + id + "/resources").WithJSON(body).WithContext(ctx).Do(&session); err != nil {

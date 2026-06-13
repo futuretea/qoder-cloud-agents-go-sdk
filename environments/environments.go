@@ -143,6 +143,9 @@ func (a *API) Create(ctx context.Context, req *CreateEnvRequest, idempotencyKey 
 
 // Get retrieves a single environment by ID.
 func (a *API) Get(ctx context.Context, id string) (*Environment, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var env Environment
 	if err := a.client.GET("/environments/" + id).WithContext(ctx).Do(&env); err != nil {
 		return nil, err
@@ -152,6 +155,9 @@ func (a *API) Get(ctx context.Context, id string) (*Environment, error) {
 
 // Update updates an existing environment.
 func (a *API) Update(ctx context.Context, id string, req *UpdateEnvRequest) (*Environment, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var env Environment
 	if err := a.client.PUT("/environments/" + id).WithJSON(req).WithContext(ctx).Do(&env); err != nil {
 		return nil, err
@@ -161,6 +167,9 @@ func (a *API) Update(ctx context.Context, id string, req *UpdateEnvRequest) (*En
 
 // Archive archives an environment.
 func (a *API) Archive(ctx context.Context, id string) (*Environment, error) {
+	if err := qoderhttp.ValidateID(id); err != nil {
+		return nil, err
+	}
 	var env Environment
 	if err := a.client.POST("/environments/" + id + "/archive").WithContext(ctx).Do(&env); err != nil {
 		return nil, err

@@ -12,7 +12,6 @@ import (
 // APIError represents a parsed Qoder API error response.
 type APIError struct {
 	StatusCode int    `json:"-"`
-	Type       string `json:"-"`
 	ErrorType  string `json:"type"`
 	Message    string `json:"message"`
 	Param      string `json:"param,omitempty"`
@@ -69,6 +68,10 @@ type apiErrorEnvelope struct {
 	} `json:"error"`
 }
 
+// maxErrorBodySize limits how much of a response body is read when parsing
+// API errors, preventing unbounded memory consumption from malformed responses.
+const maxErrorBodySize = 64 << 10 // 64 KB
+
 // QoderErrorMiddleware is a go-http-client ResponseMiddleware that parses
 // Qoder API error envelopes on non-2xx responses and returns typed *APIError.
 func QoderErrorMiddleware(resp *http.Response) error {
@@ -76,7 +79,7 @@ func QoderErrorMiddleware(resp *http.Response) error {
 		return nil
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize+1))
 	if err != nil {
 		resp.Body = io.NopCloser(bytes.NewReader(nil))
 		return &APIError{
@@ -89,10 +92,14 @@ func QoderErrorMiddleware(resp *http.Response) error {
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 
 	var env apiErrorEnvelope
+	truncated := len(body) > maxErrorBodySize
 	if err := json.Unmarshal(body, &env); err != nil || env.Error.Message == "" {
 		msg := string(body)
 		if len(msg) > 1024 {
 			msg = msg[:1024] + "..."
+		}
+		if truncated {
+			msg += " (truncated)"
 		}
 		return &APIError{
 			StatusCode: resp.StatusCode,
@@ -101,13 +108,16 @@ func QoderErrorMiddleware(resp *http.Response) error {
 		}
 	}
 
-	return &APIError{
+	apiErr := &APIError{
 		StatusCode: resp.StatusCode,
-		Type:       env.Type,
 		ErrorType:  env.Error.Type,
 		Message:    env.Error.Message,
 		Param:      env.Error.Param,
 	}
+	if truncated {
+		apiErr.Message += " (truncated)"
+	}
+	return apiErr
 }
 
 // Ensure APIError implements the error interface.
