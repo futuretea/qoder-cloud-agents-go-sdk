@@ -5,6 +5,7 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	httpclient "github.com/futuretea/go-http-client"
@@ -50,23 +51,29 @@ func NewInterruptEvent() UserMessageEvent {
 // NewToolConfirmationEvent creates a tool confirmation event.
 // toolUseID is the ID of the tool_use event being confirmed.
 // Set approved to true to allow the tool call, false to deny it.
-func NewToolConfirmationEvent(toolUseID string, approved bool) UserMessageEvent {
-	payload, _ := json.Marshal(map[string]any{
+func NewToolConfirmationEvent(toolUseID string, approved bool) (UserMessageEvent, error) {
+	payload, err := json.Marshal(map[string]any{
 		"tool_use_id": toolUseID,
 		"approved":    approved,
 	})
-	return UserMessageEvent{Type: EventTypeUserToolConfirmation, Content: string(payload)}
+	if err != nil {
+		return UserMessageEvent{}, fmt.Errorf("events: encode tool confirmation: %w", err)
+	}
+	return UserMessageEvent{Type: EventTypeUserToolConfirmation, Content: string(payload)}, nil
 }
 
 // NewCustomToolResultEvent creates a custom tool result event.
 // toolUseID is the ID of the custom_tool_use event.
 // result contains the tool result data.
-func NewCustomToolResultEvent(toolUseID string, result map[string]any) UserMessageEvent {
-	payload, _ := json.Marshal(map[string]any{
+func NewCustomToolResultEvent(toolUseID string, result map[string]any) (UserMessageEvent, error) {
+	payload, err := json.Marshal(map[string]any{
 		"tool_use_id": toolUseID,
 		"result":      result,
 	})
-	return UserMessageEvent{Type: EventTypeUserCustomToolResult, Content: string(payload)}
+	if err != nil {
+		return UserMessageEvent{}, fmt.Errorf("events: encode custom tool result: %w", err)
+	}
+	return UserMessageEvent{Type: EventTypeUserCustomToolResult, Content: string(payload)}, nil
 }
 
 // SendEventRequest wraps events for sending to a session.

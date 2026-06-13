@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -210,6 +212,9 @@ func TestPostMultipart(t *testing.T) {
 		if contentType == "" {
 			t.Error("expected Content-Type header")
 		}
+		if r.Header.Get("Idempotency-Key") != "key-123" {
+			t.Errorf("expected Idempotency-Key header %q, got %q", "key-123", r.Header.Get("Idempotency-Key"))
+		}
 
 		// Parse the multipart form
 		err := r.ParseMultipartForm(10 << 20)
@@ -243,12 +248,54 @@ func TestPostMultipart(t *testing.T) {
 
 	var result map[string]string
 	err := PostMultipart(context.Background(), c, "/files", "file", "test.txt", []byte("test-file-content"),
-		map[string]string{"purpose": "user_upload"}, nil, &result)
+		map[string]string{"purpose": "user_upload"}, map[string]string{"Idempotency-Key": "key-123"}, &result)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if result["id"] != "file_123" {
 		t.Errorf("expected id 'file_123', got '%s'", result["id"])
+	}
+}
+
+func TestPostMultipart_FieldOrdering(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("failed to read body: %v", err)
+			return
+		}
+
+		// Fields should appear in sorted alphabetical order in the raw body.
+		bodyStr := string(body)
+		idxA := strings.Index(bodyStr, `name="a"`)
+		idxB := strings.Index(bodyStr, `name="b"`)
+		idxC := strings.Index(bodyStr, `name="c"`)
+		if idxA == -1 || idxB == -1 || idxC == -1 {
+			t.Errorf("expected all fields in body, got a=%d b=%d c=%d", idxA, idxB, idxC)
+		}
+		if !(idxA < idxB && idxB < idxC) {
+			t.Errorf("expected fields sorted a < b < c in body, got a=%d b=%d c=%d", idxA, idxB, idxC)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"id": "file_123"})
+	}))
+	defer srv.Close()
+
+	c := NewClient(&Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+
+	// Insert fields in reverse alphabetical order to verify sorting.
+	extraFields := map[string]string{
+		"c": "3",
+		"b": "2",
+		"a": "1",
+	}
+
+	var result map[string]string
+	err := PostMultipart(context.Background(), c, "/files", "file", "test.txt", []byte("content"),
+		extraFields, nil, &result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -700,6 +747,106 @@ func TestSSEStreamNextAfterClose(t *testing.T) {
 	}
 }
 
+// delayedReader is an io.ReadCloser that blocks Read until the test signals
+// the reader to proceed. It is used to exercise the SSE cache path where a
+// parse completes concurrently with context cancellation.
+type delayedReader struct {
+	data      []byte
+	readReady chan struct{}
+	readyOnce sync.Once
+	unblock   chan struct{}
+}
+
+func (r *delayedReader) Read(p []byte) (int, error) {
+	r.readyOnce.Do(func() { close(r.readReady) })
+	<-r.unblock
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	if len(r.data) == 0 {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (r *delayedReader) Close() error {
+	select {
+	case <-r.unblock:
+	default:
+		close(r.unblock)
+	}
+	return nil
+}
+
+func TestSSEStream_CachesEventOnContextCancellation(t *testing.T) {
+	evtData := []byte("id: evt_001\nevent: agent.message\ndata: hello\n\n")
+	dr := &delayedReader{
+		data:      evtData,
+		readReady: make(chan struct{}),
+		unblock:   make(chan struct{}),
+	}
+
+	resp := &http.Response{Body: dr}
+	stream := NewSSEStream(resp)
+	defer func() { _ = stream.Close() }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-dr.readReady
+		cancel()
+	}()
+
+	// This call blocks until Close() is triggered by cancellation; the parse
+	// goroutine then unblocks, reads the event, and caches it.
+	_, err := stream.Next(ctx)
+	if err != context.Canceled {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+
+	// The next call should return the cached event without reading again.
+	evt, err := stream.Next(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error reading cached event: %v", err)
+	}
+	if evt.ID != "evt_001" {
+		t.Errorf("expected cached event ID evt_001, got %s", evt.ID)
+	}
+}
+
+func TestQoderErrorMiddleware_NilBody(t *testing.T) {
+	err := QoderErrorMiddleware(&http.Response{StatusCode: http.StatusInternalServerError, Body: nil})
+	if err == nil {
+		t.Fatal("expected error for nil body")
+	}
+	apiErr, ok := IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Message != "empty response body" {
+		t.Errorf("expected message %q, got %q", "empty response body", apiErr.Message)
+	}
+}
+
+func TestQoderErrorMiddleware_TruncatedFallbackBody(t *testing.T) {
+	longMsg := strings.Repeat("x", maxErrorBodySize+100)
+	body := fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":%q}}`, longMsg)
+	resp := &http.Response{
+		StatusCode: http.StatusInternalServerError,
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+
+	err := QoderErrorMiddleware(resp)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	apiErr, ok := IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if !strings.HasSuffix(apiErr.Message, " (truncated)") {
+		t.Errorf("expected truncated message suffix, got %q", apiErr.Message)
+	}
+}
+
 func TestValidateID(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -720,6 +867,12 @@ func TestValidateID(t *testing.T) {
 		{name: "URL-encoded backslash", id: `a%5cb`, wantErr: true},
 		{name: "URL-encoded dot-dot", id: "a%2e%2eb", wantErr: true},
 		{name: "URL-encoded mixed case dot-dot", id: "%2E%2E", wantErr: true},
+		{name: "contains hash", id: "agent_123#frag", wantErr: true},
+		{name: "contains question mark", id: "agent_123?foo=bar", wantErr: true},
+		{name: "contains space", id: "agent 123", wantErr: true},
+		{name: "contains tab", id: "agent\t123", wantErr: true},
+		{name: "contains newline", id: "agent\n123", wantErr: true},
+		{name: "contains control char", id: "agent\x00123", wantErr: true},
 		{name: "percent sign in normal ID", id: "agent_50%_discount", wantErr: false},
 	}
 	for _, tt := range tests {

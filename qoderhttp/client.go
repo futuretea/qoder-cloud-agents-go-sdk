@@ -7,8 +7,10 @@ import (
 	"context"
 	"fmt"
 	"mime/multipart"
+	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/types"
@@ -53,8 +55,15 @@ func multipartBody(fieldName, filename string, data []byte, extraFields map[stri
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 
-	for k, v := range extraFields {
-		if err := w.WriteField(k, v); err != nil {
+	// Write extra fields in deterministic order to make request bodies stable
+	// across calls and easier to test or sign.
+	keys := make([]string, 0, len(extraFields))
+	for k := range extraFields {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if err := w.WriteField(k, extraFields[k]); err != nil {
 			return nil, "", fmt.Errorf("qoderhttp: write field %s: %w", k, err)
 		}
 	}
@@ -106,9 +115,15 @@ func ValidateID(id string) error {
 	if id == "" {
 		return fmt.Errorf("qoderhttp: resource ID must not be empty")
 	}
-	// Check literal path traversal characters.
-	if strings.Contains(id, "/") || strings.Contains(id, "\\") || strings.Contains(id, "..") {
+	// Check literal path traversal and URL-breaking characters.
+	if strings.ContainsAny(id, "/\\#?") || strings.Contains(id, "..") {
 		return fmt.Errorf("qoderhttp: resource ID contains invalid characters: %q", id)
+	}
+	// Reject whitespace and control characters that are invalid in URLs.
+	for _, r := range id {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return fmt.Errorf("qoderhttp: resource ID contains invalid characters: %q", id)
+		}
 	}
 	// Check URL-encoded path traversal sequences (case-insensitive).
 	// %2e (encoded dot) is rejected unconditionally — there is no legitimate

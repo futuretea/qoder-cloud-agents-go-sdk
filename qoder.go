@@ -59,15 +59,21 @@ type Client struct {
 // Option configures a Client.
 type Option func(*Client)
 
+// rebuildHTTP recreates the internal HTTP client from the current Client state.
+// It is called by Option functions after mutating configuration fields.
+func (c *Client) rebuildHTTP() {
+	c.http = qoderhttp.NewClient(&qoderhttp.Config{
+		BaseURL:    c.baseURL,
+		Token:      c.token,
+		HTTPClient: c.httpClient,
+	})
+}
+
 // WithHTTPClient sets a custom *http.Client for connection pooling or testing.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = hc
-		c.http = qoderhttp.NewClient(&qoderhttp.Config{
-			BaseURL:    c.baseURL,
-			Token:      c.token,
-			HTTPClient: hc,
-		})
+		c.rebuildHTTP()
 	}
 }
 
@@ -75,11 +81,7 @@ func WithHTTPClient(hc *http.Client) Option {
 func WithBaseURL(url string) Option {
 	return func(c *Client) {
 		c.baseURL = url
-		c.http = qoderhttp.NewClient(&qoderhttp.Config{
-			BaseURL:    url,
-			Token:      c.token,
-			HTTPClient: c.httpClient,
-		})
+		c.rebuildHTTP()
 	}
 }
 
