@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -91,12 +93,43 @@ type StreamEvent = qoderhttp.SSEEvent
 
 // API provides access to the Events resource.
 type API struct {
-	client httpclient.Client
+	client     httpclient.Client
+	httpClient *http.Client
+	baseURL    string
+	token      string
+}
+
+// Option configures an Events API.
+type Option func(*API)
+
+// WithHTTPClient sets a raw *http.Client for streaming requests.
+func WithHTTPClient(hc *http.Client) Option {
+	return func(a *API) {
+		a.httpClient = hc
+	}
+}
+
+// WithBaseURL sets the API base URL for streaming requests.
+func WithBaseURL(baseURL string) Option {
+	return func(a *API) {
+		a.baseURL = baseURL
+	}
+}
+
+// WithToken sets the bearer token for streaming requests.
+func WithToken(token string) Option {
+	return func(a *API) {
+		a.token = token
+	}
 }
 
 // NewAPI creates a new Events API client.
-func NewAPI(client httpclient.Client) *API {
-	return &API{client: client}
+func NewAPI(client httpclient.Client, opts ...Option) *API {
+	a := &API{client: client}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
 }
 
 // Send sends one or more user message events to a session.
@@ -152,8 +185,34 @@ func (a *API) Stream(ctx context.Context, sessionID string, lastEventID ...strin
 	if err := qoderhttp.ValidateID(sessionID); err != nil {
 		return nil, err
 	}
-	path := "/sessions/" + sessionID + "/events/stream"
-	req := a.client.GET(path).
+
+	streamPath := "/sessions/" + sessionID + "/events/stream"
+
+	// Streaming responses cannot be consumed by response middleware that buffers
+	// the body. Use the raw HTTP client when configured.
+	if a.httpClient != nil && a.baseURL != "" {
+		u, err := url.Parse(a.baseURL)
+		if err != nil {
+			return nil, fmt.Errorf("events: invalid base URL: %w", err)
+		}
+		u.Path = path.Join(u.Path, streamPath)
+		if len(lastEventID) > 0 && lastEventID[0] != "" {
+			q := u.Query()
+			q.Set("after_id", lastEventID[0])
+			u.RawQuery = q.Encode()
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("events: create stream request: %w", err)
+		}
+		req.Header.Set("Accept", "text/event-stream")
+		if a.token != "" {
+			req.Header.Set("Authorization", "Bearer "+a.token)
+		}
+		return a.httpClient.Do(req)
+	}
+
+	req := a.client.GET(streamPath).
 		WithHeader("Accept", "text/event-stream").
 		WithContext(ctx)
 	if len(lastEventID) > 0 && lastEventID[0] != "" {

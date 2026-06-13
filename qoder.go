@@ -131,7 +131,14 @@ func (c *Client) Sessions() *sessions.API {
 // Events returns the Events API client (lazy-initialized via sync.Once).
 func (c *Client) Events() *events.API {
 	c.eventsOnce.Do(func() {
-		c.events = events.NewAPI(c.http)
+		opts := []events.Option{
+			events.WithBaseURL(c.baseURL),
+			events.WithToken(c.token),
+		}
+		if hc, ok := c.httpClient.(*http.Client); ok {
+			opts = append(opts, events.WithHTTPClient(hc))
+		}
+		c.events = events.NewAPI(c.http, opts...)
 	})
 	return c.events
 }

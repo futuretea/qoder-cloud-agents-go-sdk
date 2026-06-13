@@ -13,13 +13,13 @@ import (
 
 // File represents a file stored in the Qoder Cloud.
 type File struct {
-	ID        string         `json:"id"`
+	ID        string         `json:"file_id"`
 	Type      string         `json:"type"`
 	Filename  string         `json:"filename"`
 	Name      string         `json:"name,omitempty"`
 	Purpose   string         `json:"purpose"`
 	Status    string         `json:"status"`
-	Size      int64          `json:"size"`
+	Size      int64          `json:"size_bytes"`
 	Metadata  types.Metadata `json:"metadata,omitempty"`
 	CreatedAt string         `json:"created_at"`
 	UpdatedAt string         `json:"updated_at"`

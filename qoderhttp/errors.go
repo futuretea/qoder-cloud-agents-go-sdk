@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // APIError represents a parsed Qoder API error response.
@@ -76,6 +77,15 @@ const maxErrorBodySize = 64 << 10 // 64 KB
 // Qoder API error envelopes on non-2xx responses and returns typed *APIError.
 func QoderErrorMiddleware(resp *http.Response) error {
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+
+	// Streaming responses (e.g., SSE) must not have their bodies consumed by
+	// error parsing middleware; the caller reads the stream directly.
+	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+		return nil
+	}
+	if resp.Request != nil && strings.HasPrefix(resp.Request.Header.Get("Accept"), "text/event-stream") {
 		return nil
 	}
 
