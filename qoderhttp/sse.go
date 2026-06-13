@@ -68,7 +68,7 @@ func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
 		// Close the body to unblock the scanner goroutine.
 		// Uses Close() (idempotent via sync.Once) so a subsequent
 		// defer stream.Close() by the caller is always safe.
-		s.Close()
+		_ = s.Close()
 		return nil, ctx.Err()
 	case r := <-ch:
 		return r.evt, r.err
@@ -112,9 +112,7 @@ func (s *SSEStream) parseNext() (*SSEEvent, error) {
 		if colonIdx := strings.Index(line, ":"); colonIdx >= 0 {
 			field = line[:colonIdx]
 			value = line[colonIdx+1:]
-			if strings.HasPrefix(value, " ") {
-				value = value[1:]
-			}
+			value = strings.TrimPrefix(value, " ")
 		}
 
 		switch field {

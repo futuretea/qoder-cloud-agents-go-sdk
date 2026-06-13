@@ -140,7 +140,7 @@ func ExampleClient_Events_stream() {
 		return
 	}
 	stream := qoderhttp.NewSSEStream(resp)
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	for {
 		evt, err := stream.Next(ctx)

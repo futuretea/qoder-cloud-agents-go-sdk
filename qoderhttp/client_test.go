@@ -36,7 +36,7 @@ func TestClientAuthInjection(t *testing.T) {
 			t.Errorf("expected Authorization: Bearer test-token, got %s", r.Header.Get("Authorization"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"id": "agent_123", "name": "test-agent"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"id": "agent_123", "name": "test-agent"})
 	}))
 	defer srv.Close()
 
@@ -69,7 +69,7 @@ func TestClientQueryParams(t *testing.T) {
 			t.Errorf("expected after_id=agent_001, got %s", r.URL.Query().Get("after_id"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
 	}))
 	defer srv.Close()
 
@@ -86,10 +86,10 @@ func TestClientQueryParams(t *testing.T) {
 }
 
 func TestClientErrorResponse(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"type": "error",
 			"error": map[string]string{
 				"type":    "not_found_error",
@@ -120,10 +120,10 @@ func TestClientErrorResponse(t *testing.T) {
 }
 
 func TestClientConflictError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"type": "error",
 			"error": map[string]string{
 				"type":    "conflict_error",
@@ -146,7 +146,7 @@ func TestClientConflictError(t *testing.T) {
 }
 
 func TestQoderErrorMiddlewareNonJSON(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("<html><body>Internal Server Error</body></html>"))
@@ -171,10 +171,10 @@ func TestQoderErrorMiddlewareNonJSON(t *testing.T) {
 }
 
 func TestQoderErrorMiddlewareEmptyMessage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"type": "error",
 			"error": map[string]string{
 				"type":    "", // empty error type
@@ -220,7 +220,7 @@ func TestPostMultipart(t *testing.T) {
 			t.Errorf("expected file field: %v", err)
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		content, _ := io.ReadAll(file)
 		if string(content) != "test-file-content" {
@@ -232,7 +232,7 @@ func TestPostMultipart(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"id": "file_123", "filename": "test.txt"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"id": "file_123", "filename": "test.txt"})
 	}))
 	defer srv.Close()
 
@@ -298,7 +298,7 @@ func TestIsAPIError(t *testing.T) {
 func TestSSEStream(t *testing.T) {
 	sseData := "id: evt_001\nevent: agent.message\ndata: {\"type\":\"agent.message\",\"content\":\"hello\"}\n\nid: evt_002\nevent: agent.thinking\ndata: {\"type\":\"agent.thinking\",\"content\":\"thinking...\"}\n\n"
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(sseData))
@@ -313,7 +313,7 @@ func TestSSEStream(t *testing.T) {
 	}
 
 	stream := NewSSEStream(resp)
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	evt1, err := stream.Next(t.Context())
 	if err != nil {
@@ -344,7 +344,7 @@ func TestApplyListParams(t *testing.T) {
 				t.Errorf("expected no query params for nil ListParams, got %s", r.URL.RawQuery)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
 		}))
 		defer srv.Close()
 
@@ -365,7 +365,7 @@ func TestApplyListParams(t *testing.T) {
 				t.Errorf("expected after_id=cursor_abc, got %s", r.URL.Query().Get("after_id"))
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
 		}))
 		defer srv.Close()
 
@@ -384,7 +384,7 @@ func TestApplyListParams(t *testing.T) {
 				t.Errorf("expected no query params for empty ListParams, got %s", r.URL.RawQuery)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}, "has_more": false})
 		}))
 		defer srv.Close()
 
@@ -404,7 +404,7 @@ func TestApplyIdempotencyKey(t *testing.T) {
 				t.Errorf("expected Idempotency-Key header, got %q", r.Header.Get("Idempotency-Key"))
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"id": "res_123"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "res_123"})
 		}))
 		defer srv.Close()
 
@@ -421,7 +421,7 @@ func TestApplyIdempotencyKey(t *testing.T) {
 				t.Errorf("expected no Idempotency-Key header, got %q", r.Header.Get("Idempotency-Key"))
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"id": "res_123"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "res_123"})
 		}))
 		defer srv.Close()
 
@@ -438,7 +438,7 @@ func TestApplyIdempotencyKey(t *testing.T) {
 				t.Errorf("expected no Idempotency-Key header for empty key, got %q", r.Header.Get("Idempotency-Key"))
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"id": "res_123"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "res_123"})
 		}))
 		defer srv.Close()
 
@@ -495,7 +495,7 @@ func TestAPIErrorWithParam(t *testing.T) {
 }
 
 func TestSSEStreamCloseIdempotent(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("data: hello\n\n"))
@@ -527,7 +527,7 @@ func TestSSEStreamCloseIdempotent(t *testing.T) {
 func TestSSEStreamMultiLineData(t *testing.T) {
 	sseData := "id: evt_001\nevent: agent.message\ndata: line1\ndata: line2\ndata: line3\n\n"
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(sseData))
@@ -542,7 +542,7 @@ func TestSSEStreamMultiLineData(t *testing.T) {
 	}
 
 	stream := NewSSEStream(resp)
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	evt, err := stream.Next(t.Context())
 	if err != nil {
@@ -561,14 +561,14 @@ func TestSSEStreamContextCancellation(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		defer pw.Close()
+		defer func() { _ = pw.Close() }()
 		_, _ = pw.Write([]byte("id: evt_001\nevent: agent.message\ndata: hello\n\n"))
 		<-done // block until test signals completion
 	}()
 
 	resp := &http.Response{Body: pr}
 	stream := NewSSEStream(resp)
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	// Read the first event (should succeed).
 	_, err := stream.Next(t.Context())
