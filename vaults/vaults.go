@@ -41,13 +41,19 @@ type CreateVaultRequest struct {
 	Metadata    types.Metadata     `json:"metadata,omitempty"`
 }
 
-// CreateCredential represents a credential to create as part of a vault.
+// CreateCredential represents a credential to create, used both as part of a
+// vault creation request and as a standalone credential addition to an existing vault.
 type CreateCredential struct {
 	MCPServerURL string `json:"mcp_server_url"`
 	Protocol     string `json:"protocol"`
 	Type         string `json:"type"`
 	AccessToken  string `json:"access_token"`
 }
+
+// CreateCredentialRequest is an alias for CreateCredential, used when adding a
+// credential to an existing vault via API.CreateCredential. The two types are
+// structurally identical; the distinct name documents the different use context.
+type CreateCredentialRequest = CreateCredential
 
 // NewCreateRequest creates a new CreateVaultRequest with the required display name.
 func NewCreateRequest(displayName string) *CreateVaultRequest {
@@ -64,14 +70,6 @@ func (r *CreateVaultRequest) WithCredential(cred CreateCredential) *CreateVaultR
 func (r *CreateVaultRequest) WithMetadata(metadata types.Metadata) *CreateVaultRequest {
 	r.Metadata = metadata
 	return r
-}
-
-// CreateCredentialRequest is the builder for adding a credential to an existing vault.
-type CreateCredentialRequest struct {
-	MCPServerURL string `json:"mcp_server_url"`
-	Protocol     string `json:"protocol"`
-	Type         string `json:"type"`
-	AccessToken  string `json:"access_token"`
 }
 
 // NewStaticBearerCredential creates a new static bearer credential for an MCP server.

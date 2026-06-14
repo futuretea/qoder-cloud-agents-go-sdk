@@ -4,6 +4,7 @@ package skills
 
 import (
 	"context"
+	"fmt"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -79,6 +80,9 @@ func (a *API) List(ctx context.Context, params *types.ListParams) (*types.Pagina
 
 // Create uploads a .zip skill package and creates a new skill.
 func (a *API) Create(ctx context.Context, req *CreateSkillRequest, idempotencyKey ...string) (*Skill, error) {
+	if req == nil {
+		return nil, fmt.Errorf("skills: CreateSkillRequest must not be nil")
+	}
 	extraFields := map[string]string{"type": req.Type}
 
 	var extraHeaders map[string]string

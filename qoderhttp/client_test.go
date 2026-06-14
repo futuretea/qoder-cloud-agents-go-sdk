@@ -867,6 +867,7 @@ func TestValidateID(t *testing.T) {
 		{name: "URL-encoded backslash", id: `a%5cb`, wantErr: true},
 		{name: "URL-encoded dot-dot", id: "a%2e%2eb", wantErr: true},
 		{name: "URL-encoded mixed case dot-dot", id: "%2E%2E", wantErr: true},
+		{name: "URL-encoded null byte", id: "a%00b", wantErr: true},
 		{name: "contains hash", id: "agent_123#frag", wantErr: true},
 		{name: "contains question mark", id: "agent_123?foo=bar", wantErr: true},
 		{name: "contains space", id: "agent 123", wantErr: true},

@@ -77,7 +77,10 @@ func TestCreateWithConfigOverride(t *testing.T) {
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("failed to decode request body: %v", err)
 		}
-		config := payload["config"].(map[string]interface{})
+		config, ok := payload["config"].(map[string]interface{})
+			if !ok {
+				t.Fatal("expected config to be an object")
+			}
 		if config["type"] != "vm" {
 			t.Errorf("expected config.type 'vm', got %v", config["type"])
 		}

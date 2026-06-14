@@ -110,7 +110,7 @@ func ApplyIdempotencyKey(req *httpclient.RequestBuilder, idempotencyKey ...strin
 // IDs are embedded in URL paths.
 //
 // Both literal and URL-encoded traversal sequences are rejected
-// (e.g., %2F for /, %5C for \, %2E%2E for ..).
+// (e.g., %2F for /, %5C for \, %2E%2E for .., %00 for null byte).
 func ValidateID(id string) error {
 	if id == "" {
 		return fmt.Errorf("qoderhttp: resource ID must not be empty")
@@ -125,12 +125,16 @@ func ValidateID(id string) error {
 			return fmt.Errorf("qoderhttp: resource ID contains invalid characters: %q", id)
 		}
 	}
-	// Check URL-encoded path traversal sequences (case-insensitive).
+	// Check URL-encoded dangerous sequences (case-insensitive).
+	// %2f = /, %5c = \, %2e = ., %00 = null byte.
 	// %2e (encoded dot) is rejected unconditionally — there is no legitimate
 	// use for an encoded dot in a resource ID, and even a single %2e combined
 	// with a literal dot can form .. after URL decoding.
+	// %00 (null byte) can cause path truncation in some HTTP frameworks
+	// after URL decoding.
 	lower := strings.ToLower(id)
-	if strings.Contains(lower, "%2f") || strings.Contains(lower, "%5c") || strings.Contains(lower, "%2e") {
+	if strings.Contains(lower, "%2f") || strings.Contains(lower, "%5c") ||
+		strings.Contains(lower, "%2e") || strings.Contains(lower, "%00") {
 		return fmt.Errorf("qoderhttp: resource ID contains invalid characters: %q", id)
 	}
 	return nil

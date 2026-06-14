@@ -34,6 +34,10 @@ type SSEStream struct {
 	closeOnce sync.Once
 	closeErr  error
 
+	// parseMu serializes calls to Next() to prevent concurrent access to
+	// the bufio.Scanner, which is not safe for concurrent use.
+	parseMu sync.Mutex
+
 	// cachedEvent and cachedErr hold a parsed result that was completed
 	// concurrently with a previous context cancellation, preventing silent
 	// event loss when the select in Next() non-deterministically picks
@@ -62,6 +66,9 @@ func NewSSEStream(resp *http.Response) *SSEStream {
 // and returns ctx.Err(). A successfully parsed event that completes
 // concurrently with cancellation is not lost — it is cached and returned on
 // the next call to Next().
+//
+// Next is safe for concurrent use: calls are serialized via an internal mutex
+// to protect the underlying bufio.Scanner.
 func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
 	// Return a cached event from a previous context-cancelled call.
 	s.cachedMu.Lock()
@@ -73,6 +80,10 @@ func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
 		return evt, err
 	}
 	s.cachedMu.Unlock()
+
+	// Serialize scanner access — bufio.Scanner is not safe for concurrent use.
+	s.parseMu.Lock()
+	defer s.parseMu.Unlock()
 
 	type parseResult struct {
 		evt *SSEEvent
