@@ -569,7 +569,7 @@ func TestSkill_InvalidID(t *testing.T) {
 	// ValidateID should reject before any HTTP call. Use httptest so that if
 	// a call does slip through, the test fails loudly instead of hitting a
 	// live endpoint.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("unexpected HTTP call for invalid skill ID")
 	}))
 	defer srv.Close()
@@ -752,7 +752,7 @@ func TestSkill_Create_LargeFile(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSkill_Get_Error(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -779,7 +779,7 @@ func TestSkill_Get_Error(t *testing.T) {
 }
 
 func TestSkill_Update_Error(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{

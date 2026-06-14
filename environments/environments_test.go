@@ -78,9 +78,9 @@ func TestCreateWithConfigOverride(t *testing.T) {
 			t.Fatalf("failed to decode request body: %v", err)
 		}
 		config, ok := payload["config"].(map[string]interface{})
-			if !ok {
-				t.Fatal("expected config to be an object")
-			}
+		if !ok {
+			t.Fatal("expected config to be an object")
+		}
 		if config["type"] != "vm" {
 			t.Errorf("expected config.type 'vm', got %v", config["type"])
 		}

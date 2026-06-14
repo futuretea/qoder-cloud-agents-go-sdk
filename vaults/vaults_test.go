@@ -556,7 +556,7 @@ func TestCredential_Archive(t *testing.T) {
 func TestVault_InvalidID(t *testing.T) {
 	// Client-side validation rejects invalid IDs before any HTTP call.
 	// The httptest server MUST never be reached — if it is, validation failed.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("unexpected HTTP call for invalid vault ID")
 	}))
 	defer srv.Close()
@@ -654,7 +654,7 @@ func TestNewStaticBearerCredential(t *testing.T) {
 }
 
 func TestVault_Create_Error(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -685,7 +685,7 @@ func TestVault_Create_Error(t *testing.T) {
 }
 
 func TestCredential_Create_Error(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{

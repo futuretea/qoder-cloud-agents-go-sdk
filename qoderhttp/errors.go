@@ -102,7 +102,7 @@ func QoderErrorMiddleware(resp *http.Response) error {
 	// connection leaks. The go-http-client framework's response lifecycle
 	// closes whatever resp.Body points to when the request completes, so
 	// the original body would be abandoned if we replace it without closing.
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if err != nil {
 		resp.Body = io.NopCloser(bytes.NewReader(nil))
 		return &APIError{

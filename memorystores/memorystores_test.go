@@ -675,7 +675,7 @@ func TestStore_InvalidID(t *testing.T) {
 	// Table-driven test: invalid IDs for store-level Get, Delete, Archive.
 	// Validation happens client-side, so the HTTP handler must NOT be called.
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("unexpected HTTP call for invalid store ID")
 	}))
 	defer srv.Close()
@@ -715,7 +715,7 @@ func TestEntry_InvalidID(t *testing.T) {
 	// Table-driven test: invalid storeID / entryID for entry-level methods.
 	// Validation happens client-side, so the HTTP handler must NOT be called.
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("unexpected HTTP call for invalid entry ID")
 	}))
 	defer srv.Close()
@@ -832,7 +832,7 @@ func TestUpdateEntryRequest_Builder(t *testing.T) {
 func TestStore_Create_Error(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -865,7 +865,7 @@ func TestStore_Create_Error(t *testing.T) {
 func TestEntry_Get_Error(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
