@@ -1,5 +1,5 @@
 // Package events provides the Events resource for sending and receiving session events.
-// See: https://docs.qoder.com/cloud-agents/api/sessions/create
+// See: https://docs.qoder.com/cloud-agents/api/events
 package events
 
 import (
@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sync"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -93,10 +94,14 @@ type StreamEvent = qoderhttp.SSEEvent
 
 // API provides access to the Events resource.
 type API struct {
-	client     httpclient.Client
-	httpClient *http.Client
-	baseURL    string
-	token      string
+	client httpclient.Client
+	mu     sync.RWMutex // guards rawHTTPClient, baseURL, token
+	// rawHTTPClient is the *http.Client used for SSE streaming requests.
+	// When non-nil and baseURL is non-empty, Stream uses the raw HTTP path
+	// instead of the go-http-client buffered path.
+	rawHTTPClient *http.Client
+	baseURL       string
+	token         string
 }
 
 // Option configures an Events API.
@@ -105,7 +110,7 @@ type Option func(*API)
 // WithHTTPClient sets a raw *http.Client for streaming requests.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(a *API) {
-		a.httpClient = hc
+		a.rawHTTPClient = hc
 	}
 }
 
@@ -138,10 +143,16 @@ func NewAPI(client httpclient.Client, opts ...Option) *API {
 // in sync with the current Client state after the Events API has already been
 // lazy-initialized via sync.Once.
 func (a *API) UpdateStreamConfig(baseURL, token string, rawHTTPClient httpclient.Doer) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.baseURL = baseURL
 	a.token = token
 	if hc, ok := rawHTTPClient.(*http.Client); ok {
-		a.httpClient = hc
+		a.rawHTTPClient = hc
+	} else {
+		// Clear the raw HTTP client so Stream falls back to the go-http-client
+		// path instead of using a stale *http.Client from a previous call.
+		a.rawHTTPClient = nil
 	}
 }
 
@@ -203,8 +214,14 @@ func (a *API) Stream(ctx context.Context, sessionID string, lastEventID ...strin
 
 	// Streaming responses cannot be consumed by response middleware that buffers
 	// the body. Use the raw HTTP client when configured.
-	if a.httpClient != nil && a.baseURL != "" {
-		u, err := url.Parse(a.baseURL)
+	a.mu.RLock()
+	rawHC := a.rawHTTPClient
+	rawBaseURL := a.baseURL
+	rawToken := a.token
+	a.mu.RUnlock()
+
+	if rawHC != nil && rawBaseURL != "" {
+		u, err := url.Parse(rawBaseURL)
 		if err != nil {
 			return nil, fmt.Errorf("events: invalid base URL: %w", err)
 		}
@@ -219,10 +236,10 @@ func (a *API) Stream(ctx context.Context, sessionID string, lastEventID ...strin
 			return nil, fmt.Errorf("events: create stream request: %w", err)
 		}
 		req.Header.Set("Accept", "text/event-stream")
-		if a.token != "" {
-			req.Header.Set("Authorization", "Bearer "+a.token)
+		if rawToken != "" {
+			req.Header.Set("Authorization", "Bearer "+rawToken)
 		}
-		return a.httpClient.Do(req)
+		return rawHC.Do(req)
 	}
 
 	req := a.client.GET(streamPath).

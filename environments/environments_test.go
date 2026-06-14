@@ -69,7 +69,10 @@ func TestCreateIncludesConfig(t *testing.T) {
 
 func TestCreateWithConfigOverride(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
 		var payload map[string]interface{}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			t.Fatalf("failed to decode request body: %v", err)

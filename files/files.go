@@ -60,6 +60,9 @@ func (a *API) List(ctx context.Context, purpose string, params *types.ListParams
 // Upload uploads a file to Qoder Cloud.
 // The file is sent as multipart/form-data.
 func (a *API) Upload(ctx context.Context, req *UploadFileRequest, idempotencyKey ...string) (*File, error) {
+	if req == nil {
+		return nil, fmt.Errorf("files: UploadFileRequest must not be nil")
+	}
 	extraFields := map[string]string{"purpose": req.Purpose}
 	if req.Metadata != nil {
 		for k, v := range req.Metadata {

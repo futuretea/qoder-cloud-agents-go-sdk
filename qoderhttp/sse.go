@@ -15,6 +15,11 @@ import (
 // accommodate large data payloads (e.g., base64-encoded artifacts).
 const maxSSELineSize = 1 << 20 // 1 MB
 
+// maxSSEEventSize is the maximum total size of a single SSE event (sum of all
+// data lines). It prevents unbounded memory growth from a malicious or buggy
+// server that emits millions of data lines without an empty-line terminator.
+const maxSSEEventSize = 16 << 20 // 16 MB
+
 // SSEEvent represents a parsed Server-Sent Event.
 type SSEEvent struct {
 	ID    string
@@ -76,6 +81,11 @@ func (s *SSEStream) Next(ctx context.Context) (*SSEEvent, error) {
 	ch := make(chan parseResult, 1)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- parseResult{nil, fmt.Errorf("sse: panic in parseNext: %v", r)}
+			}
+		}()
 		evt, err := s.parseNext()
 		ch <- parseResult{evt, err}
 	}()
@@ -149,6 +159,9 @@ func (s *SSEStream) parseNext() (*SSEEvent, error) {
 				evt.Data = append(evt.Data, '\n')
 			}
 			evt.Data = append(evt.Data, value...)
+			if len(evt.Data) > maxSSEEventSize {
+				return nil, fmt.Errorf("sse: event exceeds maximum size of %d bytes", maxSSEEventSize)
+			}
 		}
 	}
 }

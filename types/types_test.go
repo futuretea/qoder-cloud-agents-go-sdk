@@ -62,3 +62,65 @@ func TestListParamsToQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestListParamsValidate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		params  ListParams
+		wantErr bool
+	}{
+		{name: "zero limit is valid", params: ListParams{Limit: 0}, wantErr: false},
+		{name: "limit 1 is valid", params: ListParams{Limit: 1}, wantErr: false},
+		{name: "limit 100 is valid", params: ListParams{Limit: 100}, wantErr: false},
+		{name: "negative limit", params: ListParams{Limit: -1}, wantErr: true},
+		{name: "limit over 100", params: ListParams{Limit: 101}, wantErr: true},
+		{name: "limit with after_id", params: ListParams{Limit: 50, AfterID: "id_001"}, wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.params.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestMetadataValidate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		metadata Metadata
+		wantErr  bool
+	}{
+		{name: "empty metadata is valid", metadata: Metadata{}, wantErr: false},
+		{name: "nil metadata is valid", metadata: nil, wantErr: false},
+		{name: "single key-value", metadata: Metadata{"key": "value"}, wantErr: false},
+		{name: "16 keys is valid", metadata: makeMetadata(16), wantErr: false},
+		{name: "17 keys returns error", metadata: makeMetadata(17), wantErr: true},
+		{name: "64-char key is valid", metadata: Metadata{string(make([]byte, 64)): "v"}, wantErr: false},
+		{name: "65-char key returns error", metadata: Metadata{string(make([]byte, 65)): "v"}, wantErr: true},
+		{name: "512-char value is valid", metadata: Metadata{"k": string(make([]byte, 512))}, wantErr: false},
+		{name: "513-char value returns error", metadata: Metadata{"k": string(make([]byte, 513))}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.metadata.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// makeMetadata creates a Metadata map with n entries.
+func makeMetadata(n int) Metadata {
+	m := make(Metadata, n)
+	for i := range n {
+		m[string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
+	}
+	return m
+}
