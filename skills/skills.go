@@ -86,6 +86,12 @@ func (a *API) Create(ctx context.Context, req *CreateSkillRequest, idempotencyKe
 	if req == nil {
 		return nil, fmt.Errorf("skills: CreateSkillRequest must not be nil")
 	}
+	if req.Filename == "" {
+		return nil, fmt.Errorf("skills: CreateSkillRequest.Filename is required")
+	}
+	if req.Data == nil {
+		return nil, fmt.Errorf("skills: CreateSkillRequest.Data is required")
+	}
 	extraFields := map[string]string{"type": req.Type}
 
 	var extraHeaders map[string]string

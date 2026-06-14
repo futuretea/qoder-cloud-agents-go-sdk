@@ -396,6 +396,31 @@ func TestVault_List(t *testing.T) {
 			t.Error("expected error for invalid Limit")
 		}
 	})
+
+	t.Run("nil params returns empty query", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.RawQuery != "" {
+				t.Errorf("expected no query params for nil ListParams, got %s", r.URL.RawQuery)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(types.PaginatedResponse[Vault]{
+				Data:    []Vault{},
+				HasMore: false,
+			})
+		}))
+		defer srv.Close()
+
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+
+		result, err := api.List(context.Background(), nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+	})
 }
 
 func TestCredential_Create(t *testing.T) {
@@ -534,6 +559,31 @@ func TestCredential_List_InvalidParams(t *testing.T) {
 	_, err := api.ListCredentials(context.Background(), "vault_123", &types.ListParams{Limit: -1})
 	if err == nil {
 		t.Error("expected error for invalid Limit")
+	}
+}
+
+func TestCredential_List_NilParams(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" {
+			t.Errorf("expected no query params for nil ListParams, got %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(types.PaginatedResponse[Credential]{
+			Data:    []Credential{},
+			HasMore: false,
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	result, err := api.ListCredentials(context.Background(), "vault_123", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
 	}
 }
 

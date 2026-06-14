@@ -150,6 +150,9 @@ func (a *API) Create(ctx context.Context, req *CreateStoreRequest, idempotencyKe
 	if req == nil {
 		return nil, fmt.Errorf("memorystores: CreateStoreRequest must not be nil")
 	}
+	if req.Name == "" {
+		return nil, fmt.Errorf("memorystores: CreateStoreRequest.Name is required")
+	}
 	r := qoderhttp.ApplyIdempotencyKey(a.client.POST("/memory_stores").WithJSON(req), idempotencyKey...)
 	var store MemoryStore
 	if err := r.WithContext(ctx).Do(&store); err != nil {

@@ -152,3 +152,33 @@ func TestResourceAccessors(t *testing.T) {
 		}
 	})
 }
+
+func TestResourceAccessors_Concurrent(t *testing.T) {
+	client := New("test-token")
+
+	// Access all resource accessors concurrently to verify sync.Once safety.
+	// -race will flag any data races.
+	done := make(chan struct{})
+	accessors := []func(){
+		func() { client.Agents() },
+		func() { client.Environments() },
+		func() { client.Sessions() },
+		func() { client.Events() },
+		func() { client.Files() },
+		func() { client.Vaults() },
+		func() { client.Skills() },
+		func() { client.MemoryStores() },
+		func() { client.Models() },
+	}
+
+	for _, fn := range accessors {
+		go func(f func()) {
+			f()
+			done <- struct{}{}
+		}(fn)
+	}
+
+	for range accessors {
+		<-done
+	}
+}

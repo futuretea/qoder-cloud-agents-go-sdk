@@ -455,6 +455,31 @@ func TestEntry_List(t *testing.T) {
 			t.Error("expected error for invalid Limit")
 		}
 	})
+
+	t.Run("nil params returns empty query", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.RawQuery != "" {
+				t.Errorf("expected no query params for nil ListParams, got %s", r.URL.RawQuery)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(types.PaginatedResponse[MemoryEntry]{
+				Data:    []MemoryEntry{},
+				HasMore: false,
+			})
+		}))
+		defer srv.Close()
+
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+
+		result, err := api.ListEntries(context.Background(), "store_001", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+	})
 }
 
 func TestEntry_Update(t *testing.T) {
@@ -613,6 +638,31 @@ func TestVersion_List(t *testing.T) {
 		_, err := api.ListVersions(context.Background(), "store_001", &types.ListParams{Limit: -1})
 		if err == nil {
 			t.Error("expected error for invalid Limit")
+		}
+	})
+
+	t.Run("nil params returns empty query", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.RawQuery != "" {
+				t.Errorf("expected no query params for nil ListParams, got %s", r.URL.RawQuery)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(types.PaginatedResponse[Version]{
+				Data:    []Version{},
+				HasMore: false,
+			})
+		}))
+		defer srv.Close()
+
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+
+		result, err := api.ListVersions(context.Background(), "store_001", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected non-nil result")
 		}
 	})
 }

@@ -269,6 +269,7 @@ func TestList_ServerError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
 			"error": map[string]string{
 				"type":    "api_error",
 				"message": "internal server error",
@@ -459,6 +460,7 @@ func TestCreate_ServerError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
 			"error": map[string]string{
 				"type":    "invalid_request_error",
 				"message": "agent not found",
@@ -548,6 +550,7 @@ func TestGet_NotFound(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
 			"error": map[string]string{
 				"type":    "not_found",
 				"message": "session not found",
@@ -659,6 +662,7 @@ func TestUpdate_ServerError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
 			"error": map[string]string{
 				"type":    "conflict",
 				"message": "session is archived",
@@ -747,6 +751,7 @@ func TestArchive_ServerError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
 			"error": map[string]string{
 				"type":    "not_found",
 				"message": "session sess_bad not found",
@@ -824,6 +829,38 @@ func TestAddResources_HappyPath(t *testing.T) {
 	}
 }
 
+func TestAddResources_EmptySlice(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		var body struct {
+			Resources []Resource `json:"resources"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		// Server should accept empty resources (attaches nothing).
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"sess_res","agent":"agent_abc","status":"running","resources":[],"created_at":"2026-06-14T00:00:00Z","updated_at":"2026-06-14T00:00:00Z"}`))
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	sess, err := api.AddResources(context.Background(), "sess_res", []Resource{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sess == nil {
+		t.Fatal("expected non-nil session")
+	}
+	if len(sess.Resources) != 0 {
+		t.Errorf("expected 0 resources, got %d", len(sess.Resources))
+	}
+}
+
 func TestAddResources_InvalidID(t *testing.T) {
 	t.Parallel()
 
@@ -892,6 +929,7 @@ func TestCancel_ServerError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
 			"error": map[string]string{
 				"type":    "conflict",
 				"message": "session is not running",

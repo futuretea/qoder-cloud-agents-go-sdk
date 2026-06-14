@@ -60,6 +60,26 @@ func TestAPI_Send_NilRequest(t *testing.T) {
 	}
 }
 
+func TestAPI_Send_NilEvents(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify the request body contains an empty/null events array.
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("failed to decode body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	api := newTestAPI(srv.URL)
+	// Non-nil request with nil Events slice.
+	req := &SendEventRequest{Events: nil}
+	err := api.Send(context.Background(), "session_123", req)
+	if err != nil {
+		t.Fatalf("unexpected error for nil Events: %v", err)
+	}
+}
+
 func TestAPI_Send_ValidSessionID(t *testing.T) {
 	var requestPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -111,6 +111,9 @@ func (a *API) Create(ctx context.Context, req *CreateVaultRequest, idempotencyKe
 	if req == nil {
 		return nil, fmt.Errorf("vaults: CreateVaultRequest must not be nil")
 	}
+	if req.DisplayName == "" {
+		return nil, fmt.Errorf("vaults: CreateVaultRequest.DisplayName is required")
+	}
 	r := qoderhttp.ApplyIdempotencyKey(a.client.POST("/vaults").WithJSON(req), idempotencyKey...)
 	var vault Vault
 	if err := r.WithContext(ctx).Do(&vault); err != nil {

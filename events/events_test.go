@@ -261,6 +261,35 @@ func TestStream_RawPath_Non2xxErrorParsing(t *testing.T) {
 	}
 }
 
+func TestStream_RawPath_NonJSONErrorResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("<html><body>502 Bad Gateway</body></html>"))
+	}))
+	defer srv.Close()
+
+	api := rawPathAPI(srv, "tok")
+	resp, err := api.Stream(context.Background(), "sess_123")
+	if err == nil {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatal("expected a typed error for 5xx HTML response on the raw path, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != http.StatusBadGateway {
+		t.Errorf("expected status 502, got %d", apiErr.StatusCode)
+	}
+	if apiErr.ErrorType != "unknown_error" {
+		t.Errorf("expected ErrorType 'unknown_error', got %q", apiErr.ErrorType)
+	}
+}
+
 func TestStream_RawPath_InvalidBaseURL(t *testing.T) {
 	c := httpclient.NewClient(&httpclient.Config{})
 	api := NewAPI(c,

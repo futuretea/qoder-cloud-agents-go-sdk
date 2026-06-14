@@ -66,6 +66,15 @@ func (a *API) Upload(ctx context.Context, req *UploadFileRequest, idempotencyKey
 	if req == nil {
 		return nil, fmt.Errorf("files: UploadFileRequest must not be nil")
 	}
+	if req.Filename == "" {
+		return nil, fmt.Errorf("files: UploadFileRequest.Filename is required")
+	}
+	if req.Data == nil {
+		return nil, fmt.Errorf("files: UploadFileRequest.Data is required")
+	}
+	if req.Purpose == "" {
+		return nil, fmt.Errorf("files: UploadFileRequest.Purpose is required")
+	}
 	extraFields := map[string]string{"purpose": req.Purpose}
 	if req.Metadata != nil {
 		for k, v := range req.Metadata {
