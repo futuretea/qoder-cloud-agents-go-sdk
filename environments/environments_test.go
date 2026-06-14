@@ -504,3 +504,216 @@ func TestInvalidID(t *testing.T) {
 		}
 	}
 }
+
+func TestCreate_EmptyName(t *testing.T) {
+	t.Parallel()
+
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+
+	_, err := api.Create(context.Background(), &CreateEnvRequest{Name: ""})
+	if err == nil {
+		t.Fatal("expected error for empty Name, got nil")
+	}
+	if err.Error() != "environments: CreateEnvRequest.Name is required" {
+		t.Errorf("expected 'environments: CreateEnvRequest.Name is required', got %q", err.Error())
+	}
+}
+
+func TestList_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+
+	_, err := api.List(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}
+
+func TestCreate_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+
+	_, err := api.Create(context.Background(), NewCreateRequest("prod", EnvConfig{Type: "sandbox"}))
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}
+
+func TestGet_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "environment not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+
+	_, err := api.Get(context.Background(), "env_123")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestUpdate_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "environment not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+
+	_, err := api.Update(context.Background(), "env_123", NewUpdateRequest().WithName("updated-env"))
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestArchive_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "environment not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+
+	_, err := api.Archive(context.Background(), "env_123")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestDelete_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+
+	err := api.Delete(context.Background(), "env_123")
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}

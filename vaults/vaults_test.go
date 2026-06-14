@@ -804,6 +804,21 @@ func TestVault_Create_NilRequest(t *testing.T) {
 	}
 }
 
+func TestCreateVault_EmptyDisplayName(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Create(context.Background(), &CreateVaultRequest{DisplayName: ""})
+	if err == nil {
+		t.Fatal("expected error for empty DisplayName, got nil")
+	}
+	if err.Error() != "vaults: CreateVaultRequest.DisplayName is required" {
+		t.Errorf("expected 'vaults: CreateVaultRequest.DisplayName is required', got %q", err.Error())
+	}
+}
+
 func TestCredential_Create_NilRequest(t *testing.T) {
 	t.Parallel()
 
@@ -817,5 +832,160 @@ func TestCredential_Create_NilRequest(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "must not be nil") {
 		t.Errorf("expected error to mention 'must not be nil', got %q", err.Error())
+	}
+}
+
+func TestVault_Archive_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "vault not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Archive(context.Background(), "vault_123")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound")
+	}
+}
+
+func TestVault_List_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.List(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError")
+	}
+}
+
+func TestVault_Get_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "vault not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Get(context.Background(), "vault_123")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound")
+	}
+}
+
+func TestCredential_List_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.ListCredentials(context.Background(), "vault_123", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError")
+	}
+}
+
+func TestCredential_Archive_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "credential not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.ArchiveCredential(context.Background(), "vault_123", "cred_123")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound")
 	}
 }

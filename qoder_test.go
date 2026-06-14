@@ -153,7 +153,7 @@ func TestResourceAccessors(t *testing.T) {
 	})
 }
 
-func TestResourceAccessors_Concurrent(t *testing.T) {
+func TestResourceAccessors_Concurrent(_ *testing.T) {
 	client := New("test-token")
 
 	// Access all resource accessors concurrently to verify sync.Once safety.

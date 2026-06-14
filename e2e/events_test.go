@@ -112,7 +112,7 @@ func TestE2EEvents(t *testing.T) {
 	}
 
 	if eventCount == 0 {
-		t.Log("warning: no events read before timeout; connection was established")
+		t.Fatalf("no events read before timeout; connection was established but stream delivered zero events")
 	}
 
 	t.Logf("event stream passed: read %d event(s)", eventCount)

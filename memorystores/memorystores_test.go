@@ -1019,3 +1019,426 @@ func TestEntry_Update_NilRequest(t *testing.T) {
 		t.Errorf("expected nil request error, got %q", err.Error())
 	}
 }
+
+func TestStore_Get_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "memory store not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Get(context.Background(), "store_001")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestCreateStore_EmptyName(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Create(context.Background(), &CreateStoreRequest{Name: ""})
+	if err == nil {
+		t.Fatal("expected error for empty Name, got nil")
+	}
+	if err.Error() != "memorystores: CreateStoreRequest.Name is required" {
+		t.Errorf("expected 'memorystores: CreateStoreRequest.Name is required', got %q", err.Error())
+	}
+}
+
+func TestCreateEntry_EmptyPath(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.CreateEntry(context.Background(), "store_001", &CreateEntryRequest{Path: "", Content: "hello"})
+	if err == nil {
+		t.Fatal("expected error for empty Path, got nil")
+	}
+	if err.Error() != "memorystores: CreateEntryRequest.Path is required" {
+		t.Errorf("expected 'memorystores: CreateEntryRequest.Path is required', got %q", err.Error())
+	}
+}
+
+func TestCreateEntry_EmptyContent(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.CreateEntry(context.Background(), "store_001", &CreateEntryRequest{Path: "/notes/x", Content: ""})
+	if err == nil {
+		t.Fatal("expected error for empty Content, got nil")
+	}
+	if err.Error() != "memorystores: CreateEntryRequest.Content is required" {
+		t.Errorf("expected 'memorystores: CreateEntryRequest.Content is required', got %q", err.Error())
+	}
+}
+
+func TestUpdateEntry_EmptyContent(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.UpdateEntry(context.Background(), "store_001", "entry_001", &UpdateEntryRequest{Content: ""})
+	if err == nil {
+		t.Fatal("expected error for empty Content, got nil")
+	}
+	if err.Error() != "memorystores: UpdateEntryRequest.Content is required" {
+		t.Errorf("expected 'memorystores: UpdateEntryRequest.Content is required', got %q", err.Error())
+	}
+}
+
+func TestStore_List_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.List(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}
+
+func TestEntry_Create_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "store not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.CreateEntry(context.Background(), "store_001", NewCreateEntryRequest("/path", "content"))
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestEntry_List_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.ListEntries(context.Background(), "store_001", nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}
+
+func TestEntry_Update_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "entry not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.UpdateEntry(context.Background(), "store_001", "entry_001", NewUpdateEntryRequest("updated content"))
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestEntry_Delete_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "entry not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.DeleteEntry(context.Background(), "store_001", "entry_001")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestVersion_List_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.ListVersions(context.Background(), "store_001", nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}
+
+func TestVersion_Get_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "version not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.GetVersion(context.Background(), "store_001", "ver_001")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestVersion_Redact_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "version not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.RedactVersion(context.Background(), "store_001", "ver_001")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestStore_Archive_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "memory store not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Archive(context.Background(), "store_001")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestStore_Delete_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	err := api.Delete(context.Background(), "store_001")
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}

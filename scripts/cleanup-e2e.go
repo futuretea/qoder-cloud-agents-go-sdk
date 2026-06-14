@@ -149,8 +149,14 @@ func cleanupResource(ctx context.Context, client *qoder.Client, rec resourceReco
 		case "environment":
 			_, err = client.Environments().Archive(ctx, rec.ID)
 		case "session":
-			_ = ignoreNotFound(cancelSession(ctx, client, rec.ID))
+			if err = ignoreNotFoundOrConflict(cancelSession(ctx, client, rec.ID)); err != nil {
+				return err
+			}
+			if err = waitForSessionTerminal(ctx, client, rec.ID); err != nil {
+				return err
+			}
 			_, err = client.Sessions().Archive(ctx, rec.ID)
+			return ignoreNotFound(err)
 		case "file":
 			err = client.Files().Delete(ctx, rec.ID)
 		case "skill":
@@ -158,6 +164,7 @@ func cleanupResource(ctx context.Context, client *qoder.Client, rec resourceReco
 		case "memorystore":
 			err = client.MemoryStores().Delete(ctx, rec.ID)
 		case "memoryentry":
+			// For memoryentry records, rec.Name holds the parent store ID.
 			_, err = client.MemoryStores().DeleteEntry(ctx, rec.Name, rec.ID)
 		case "vault":
 			_, err = client.Vaults().Archive(ctx, rec.ID)
@@ -174,6 +181,40 @@ func cleanupResource(ctx context.Context, client *qoder.Client, rec resourceReco
 func cancelSession(ctx context.Context, client *qoder.Client, id string) error {
 	_, err := client.Sessions().Cancel(ctx, id)
 	return err
+}
+
+// isSessionTerminal reports whether a session status indicates it can be safely archived.
+func isSessionTerminal(status string) bool {
+	switch status {
+	case "cancelled", "canceled", "archived", "failed", "completed", "succeeded", "done", "finished", "error":
+		return true
+	}
+	return false
+}
+
+// waitForSessionTerminal polls the session until it reaches a terminal status or the context is done.
+func waitForSessionTerminal(ctx context.Context, client *qoder.Client, id string) error {
+	delay := 500 * time.Millisecond
+	for {
+		sess, err := client.Sessions().Get(ctx, id)
+		if err != nil {
+			if isNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		if isSessionTerminal(sess.Status) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+			if delay < 5*time.Second {
+				delay *= 2
+			}
+		}
+	}
 }
 
 func cleanupRetry(ctx context.Context, fn func() error) error {
@@ -232,9 +273,27 @@ func isNotFoundOrConflict(err error) bool {
 	return apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusConflict
 }
 
-func ignoreNotFound(err error) error {
+func ignoreNotFoundOrConflict(err error) error {
 	if isNotFoundOrConflict(err) {
 		return nil
 	}
 	return err
+}
+
+func ignoreNotFound(err error) error {
+	if isNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+func isNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		return false
+	}
+	return apiErr.StatusCode == http.StatusNotFound
 }

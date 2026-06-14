@@ -846,3 +846,151 @@ func TestSkill_Update_NilRequest(t *testing.T) {
 		t.Errorf("expected nil request error, got %q", err.Error())
 	}
 }
+
+func TestCreate_EmptyFilename(t *testing.T) {
+	t.Parallel()
+
+	api := newTestClientAndAPI("http://localhost")
+
+	_, err := api.Create(context.Background(), &CreateSkillRequest{Filename: "", Data: []byte("x"), Type: "custom"})
+	if err == nil {
+		t.Fatal("expected error for empty Filename, got nil")
+	}
+	if err.Error() != "skills: CreateSkillRequest.Filename is required" {
+		t.Errorf("expected 'skills: CreateSkillRequest.Filename is required', got %q", err.Error())
+	}
+}
+
+func TestCreate_NilData(t *testing.T) {
+	t.Parallel()
+
+	api := newTestClientAndAPI("http://localhost")
+
+	_, err := api.Create(context.Background(), &CreateSkillRequest{Filename: "x.zip", Data: nil, Type: "custom"})
+	if err == nil {
+		t.Fatal("expected error for nil Data, got nil")
+	}
+	if err.Error() != "skills: CreateSkillRequest.Data is required" {
+		t.Errorf("expected 'skills: CreateSkillRequest.Data is required', got %q", err.Error())
+	}
+}
+
+func TestSkill_Delete_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "server_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	api := newTestClientAndAPI(srv.URL)
+
+	err := api.Delete(context.Background(), "skill_123")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError")
+	}
+}
+
+func TestSkill_List_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "server_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	api := newTestClientAndAPI(srv.URL)
+
+	_, err := api.List(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError")
+	}
+}
+
+func TestSkill_Create_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "server_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	api := newTestClientAndAPI(srv.URL)
+
+	_, err := api.Create(context.Background(), &CreateSkillRequest{Filename: "skill.zip", Data: []byte("data"), Type: "custom"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError")
+	}
+}
+
+func TestSkill_ListVersions_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "server_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	api := newTestClientAndAPI(srv.URL)
+
+	_, err := api.ListVersions(context.Background(), "skill_123", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T", err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError")
+	}
+}

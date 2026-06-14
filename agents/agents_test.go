@@ -957,3 +957,98 @@ func TestUpdateAgentRequest_Builder(t *testing.T) {
 		t.Error("WithMetadata should return the same pointer for chaining")
 	}
 }
+
+func TestList_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.List(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}
+
+func TestListVersions_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.ListVersions(context.Background(), "agent_001", nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}
+
+func TestDelete_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	err := api.Delete(context.Background(), "agent_001")
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
+	}
+}

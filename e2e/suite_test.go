@@ -38,10 +38,13 @@ var (
 	sharedClient     *qoder.Client
 	sharedClientOnce sync.Once
 	enabledModelID   string
+	enabledModelErr  error
 	enabledModelOnce sync.Once
 
 	sensitiveWords     []string
 	sensitiveWordsOnce sync.Once
+
+	inventoryMu sync.Mutex // guards recordResource / unrecordResource / inventory reads
 )
 
 // resourceRecord represents a single created resource for cleanup tracking.
@@ -260,12 +263,69 @@ func ignoreNotFoundOrConflict(err error) error {
 	return err
 }
 
+// isNotFound reports whether err is a 404 Not Found API error.
+func isNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		return false
+	}
+	return apiErr.StatusCode == http.StatusNotFound
+}
+
+// ignoreNotFound returns nil for 404 Not Found errors, preserving all other errors.
+func ignoreNotFound(err error) error {
+	if isNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+// isSessionTerminal reports whether a session status indicates it can be safely archived.
+func isSessionTerminal(status string) bool {
+	switch status {
+	case "cancelled", "canceled", "archived", "failed", "completed", "succeeded", "done", "finished", "error":
+		return true
+	}
+	return false
+}
+
+// waitForSessionTerminal polls the session until it reaches a terminal status or the context is done.
+func waitForSessionTerminal(ctx context.Context, c *qoder.Client, id string) error {
+	delay := 500 * time.Millisecond
+	for {
+		sess, err := c.Sessions().Get(ctx, id)
+		if err != nil {
+			if isNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		if isSessionTerminal(sess.Status) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+			if delay < 5*time.Second {
+				delay *= 2
+			}
+		}
+	}
+}
+
 // recordResource appends a created resource to the inventory file.
 func recordResource(t *testing.T, resourceType, id, name string) {
 	t.Helper()
 	if id == "" {
 		t.Fatalf("cannot record resource with empty id (type=%s)", resourceType)
 	}
+
+	inventoryMu.Lock()
+	defer inventoryMu.Unlock()
 
 	rec := resourceRecord{Type: resourceType, ID: id, Name: name}
 	data, err := json.Marshal(rec)
@@ -296,6 +356,9 @@ func unrecordResource(t *testing.T, id string) {
 	if id == "" {
 		return
 	}
+
+	inventoryMu.Lock()
+	defer inventoryMu.Unlock()
 
 	data, err := os.ReadFile(resourcesFile)
 	if err != nil {
@@ -343,7 +406,7 @@ func unrecordResource(t *testing.T, id string) {
 // safeDelete dispatches cleanup based on resource type.
 // The name is used as a guard: cleanup is refused if the name does not start
 // with the e2e prefix, except for memoryentry where name holds the parent store
-// name and id holds the entry id.
+// ID (required by DeleteEntry) and id holds the entry ID.
 func safeDelete(t *testing.T, resourceType, id, name string) {
 	t.Helper()
 	if id == "" {
@@ -376,8 +439,15 @@ func safeDelete(t *testing.T, resourceType, id, name string) {
 	case "environment":
 		err = cleanupRetry(ctx, func() error { _, err := c.Environments().Archive(ctx, id); return ignoreNotFoundOrConflict(err) })
 	case "session":
-		_ = cleanupRetry(ctx, func() error { _, err := c.Sessions().Cancel(ctx, id); return ignoreNotFoundOrConflict(err) })
-		err = cleanupRetry(ctx, func() error { _, err := c.Sessions().Archive(ctx, id); return ignoreNotFoundOrConflict(err) })
+		if err = cleanupRetry(ctx, func() error { _, err := c.Sessions().Cancel(ctx, id); return ignoreNotFoundOrConflict(err) }); err != nil {
+			logError(t, "cleanup failed to cancel %s %s (%s): %v", resourceType, id, name, err)
+			return
+		}
+		if err = waitForSessionTerminal(ctx, c, id); err != nil {
+			logError(t, "cleanup failed waiting for %s %s (%s) to become terminal: %v", resourceType, id, name, err)
+			return
+		}
+		err = cleanupRetry(ctx, func() error { _, err := c.Sessions().Archive(ctx, id); return ignoreNotFound(err) })
 	case "file":
 		err = cleanupRetry(ctx, func() error { return ignoreNotFoundOrConflict(c.Files().Delete(ctx, id)) })
 	case "skill":
@@ -413,7 +483,8 @@ func pickEnabledModel(t *testing.T) string {
 		c := newClient(t)
 		models, err := c.Models().List(ctx)
 		if err != nil {
-			t.Fatalf("failed to list models: %v", redact(err.Error()))
+			enabledModelErr = err
+			return
 		}
 		for _, m := range models {
 			if m.IsEnabled {
@@ -421,9 +492,12 @@ func pickEnabledModel(t *testing.T) string {
 				return
 			}
 		}
-		t.Skip("no enabled model found")
+		enabledModelErr = fmt.Errorf("no enabled model found")
 	})
 
+	if enabledModelErr != nil {
+		t.Fatalf("failed to pick enabled model: %v", redact(enabledModelErr.Error()))
+	}
 	if enabledModelID == "" {
 		t.Skip("no enabled model available")
 	}
@@ -457,26 +531,32 @@ func newMinimalSkillZip(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// TestE2EZInventoryEmpty verifies that successful cleanups leave the inventory
-// file empty or non-existent. It is named with a leading Z so that it runs
-// after the other e2e tests when tests are executed in sorted order.
-func TestE2EZInventoryEmpty(t *testing.T) {
+// TestMain runs the e2e test suite and then verifies that the resource
+// inventory file is empty or non-existent. This check runs after all tests
+// regardless of execution order or shuffling.
+func TestMain(m *testing.M) {
+	code := m.Run()
+
+	inventoryMu.Lock()
+	defer inventoryMu.Unlock()
+
 	info, err := os.Stat(resourcesFile)
 	if err != nil {
-		if os.IsNotExist(err) {
-			t.Log("inventory file does not exist; no resources to verify")
-			return
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "failed to stat inventory file: %v\n", err)
+			os.Exit(1)
 		}
-		t.Fatalf("failed to stat inventory file: %v", err)
+		os.Exit(code)
 	}
 	if info.Size() == 0 {
-		t.Log("inventory file is empty")
-		return
+		os.Exit(code)
 	}
 
 	data, err := os.ReadFile(resourcesFile)
 	if err != nil {
-		t.Fatalf("failed to read inventory file: %v", err)
+		fmt.Fprintf(os.Stderr, "failed to read inventory file: %v\n", err)
+		os.Exit(1)
 	}
-	t.Fatalf("inventory file %s is not empty after cleanup:\n%s", resourcesFile, string(data))
+	fmt.Fprintf(os.Stderr, "inventory file %s is not empty after cleanup:\n%s\n", resourcesFile, string(data))
+	os.Exit(1)
 }

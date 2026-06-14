@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -67,6 +68,9 @@ func TestAPI_Send_NilEvents(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("failed to decode body: %v", err)
 		}
+		if body["events"] != nil {
+			t.Errorf("expected events field to be null for nil Events slice, got %v", body["events"])
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
@@ -98,6 +102,37 @@ func TestAPI_Send_ValidSessionID(t *testing.T) {
 	}
 	if requestPath != "/sessions/session_123/events" {
 		t.Errorf("expected path %q, got %q", "/sessions/session_123/events", requestPath)
+	}
+}
+
+func TestAPI_Send_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	err := api.Send(context.Background(), "session_123", NewSendRequest(NewUserMessage("hello")))
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Errorf("expected server error, got status %d", apiErr.StatusCode)
 	}
 }
 
@@ -183,6 +218,37 @@ func TestAPI_List_ValidSessionID(t *testing.T) {
 			t.Error("expected error for invalid Limit")
 		}
 	})
+}
+
+func TestAPI_List_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.List(context.Background(), "session_123", nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Errorf("expected server error, got status %d", apiErr.StatusCode)
+	}
 }
 
 func TestAPI_Stream_InvalidSessionID(t *testing.T) {

@@ -771,3 +771,48 @@ func TestAPI_Delete_Error(t *testing.T) {
 		t.Error("expected IsNotFound")
 	}
 }
+
+func TestUpload_EmptyFilename(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Upload(context.Background(), &UploadFileRequest{Filename: "", Data: []byte("x"), Purpose: "assistants"})
+	if err == nil {
+		t.Fatal("expected error for empty Filename, got nil")
+	}
+	if err.Error() != "files: UploadFileRequest.Filename is required" {
+		t.Errorf("expected 'files: UploadFileRequest.Filename is required', got %q", err.Error())
+	}
+}
+
+func TestUpload_NilData(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Upload(context.Background(), &UploadFileRequest{Filename: "x.txt", Data: nil, Purpose: "assistants"})
+	if err == nil {
+		t.Fatal("expected error for nil Data, got nil")
+	}
+	if err.Error() != "files: UploadFileRequest.Data is required" {
+		t.Errorf("expected 'files: UploadFileRequest.Data is required', got %q", err.Error())
+	}
+}
+
+func TestUpload_EmptyPurpose(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Upload(context.Background(), &UploadFileRequest{Filename: "x.txt", Data: []byte("x"), Purpose: ""})
+	if err == nil {
+		t.Fatal("expected error for empty Purpose, got nil")
+	}
+	if err.Error() != "files: UploadFileRequest.Purpose is required" {
+		t.Errorf("expected 'files: UploadFileRequest.Purpose is required', got %q", err.Error())
+	}
+}

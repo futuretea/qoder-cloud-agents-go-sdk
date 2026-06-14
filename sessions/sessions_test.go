@@ -147,6 +147,21 @@ func TestSession_UnmarshalJSON_WithResources(t *testing.T) {
 	if err := json.Unmarshal([]byte(payload), &session); err != nil {
 		t.Fatalf("unexpected unmarshal error: %v", err)
 	}
+	if session.ID != "sess_res456" {
+		t.Errorf("expected ID sess_res456, got %s", session.ID)
+	}
+	if session.Agent.ID != "agent_abc" {
+		t.Errorf("expected Agent.ID agent_abc, got %s", session.Agent.ID)
+	}
+	if session.Status != "running" {
+		t.Errorf("expected Status running, got %s", session.Status)
+	}
+	if session.CreatedAt != "2026-06-13T00:00:00Z" {
+		t.Errorf("expected CreatedAt 2026-06-13T00:00:00Z, got %s", session.CreatedAt)
+	}
+	if session.UpdatedAt != "2026-06-13T00:00:00Z" {
+		t.Errorf("expected UpdatedAt 2026-06-13T00:00:00Z, got %s", session.UpdatedAt)
+	}
 	if len(session.Resources) != 2 {
 		t.Fatalf("expected 2 resources, got %d", len(session.Resources))
 	}
@@ -175,6 +190,38 @@ func TestDelete_SendsDELETEAndHandles200(t *testing.T) {
 
 	if err := api.Delete(context.Background(), "sess_789"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDelete_Error(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "not_found_error",
+				"message": "session not found",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	err := api.Delete(context.Background(), "sess_404")
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsNotFound() {
+		t.Error("expected IsNotFound to be true")
 	}
 }
 
@@ -887,6 +934,39 @@ func TestAddResources_InvalidID(t *testing.T) {
 				t.Fatal("expected error for invalid ID, got nil")
 			}
 		})
+	}
+}
+
+func TestAddResources_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"type": "error",
+			"error": map[string]string{
+				"type":    "api_error",
+				"message": "internal server error",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	resources := []Resource{
+		NewResourceFile("file_add", "/new/doc.txt"),
+	}
+	_, err := api.AddResources(context.Background(), "sess_res", resources)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+	apiErr, ok := qoderhttp.IsAPIError(err)
+	if !ok {
+		t.Fatalf("expected *qoderhttp.APIError, got %T: %v", err, err)
+	}
+	if !apiErr.IsServerError() {
+		t.Error("expected IsServerError to be true")
 	}
 }
 

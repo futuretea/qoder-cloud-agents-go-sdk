@@ -56,8 +56,8 @@ func TestE2EMemoryStores(t *testing.T) {
 	if entry.Path != "e2e/hello.md" {
 		t.Fatalf("memory entry path mismatch: got %q, want %q", entry.Path, "e2e/hello.md")
 	}
-	recordResource(t, "memoryentry", entry.ID, store.Name)
-	t.Cleanup(func() { safeDelete(t, "memoryentry", entry.ID, store.Name) })
+	recordResource(t, "memoryentry", entry.ID, store.ID)
+	t.Cleanup(func() { safeDelete(t, "memoryentry", entry.ID, store.ID) })
 
 	gotEntry, err := c.MemoryStores().GetEntry(ctx, store.ID, entry.ID)
 	if err != nil {
