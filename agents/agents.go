@@ -4,6 +4,7 @@ package agents
 
 import (
 	"context"
+	"fmt"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -194,7 +195,10 @@ func NewAPI(client httpclient.Client) *API {
 
 // List returns a paginated list of agents.
 func (a *API) List(ctx context.Context, params *types.ListParams) (*types.PaginatedResponse[Agent], error) {
-	req := qoderhttp.ApplyListParams(a.client.GET("/agents"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/agents"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Agent]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -204,6 +208,15 @@ func (a *API) List(ctx context.Context, params *types.ListParams) (*types.Pagina
 
 // Create creates a new agent.
 func (a *API) Create(ctx context.Context, req *CreateAgentRequest, idempotencyKey ...string) (*Agent, error) {
+	if req == nil {
+		return nil, fmt.Errorf("agents: CreateAgentRequest must not be nil")
+	}
+	if req.Name == "" {
+		return nil, fmt.Errorf("agents: CreateAgentRequest.Name is required")
+	}
+	if req.Model == "" {
+		return nil, fmt.Errorf("agents: CreateAgentRequest.Model is required")
+	}
 	r := qoderhttp.ApplyIdempotencyKey(a.client.POST("/agents").WithJSON(req), idempotencyKey...)
 	var agent Agent
 	if err := r.WithContext(ctx).Do(&agent); err != nil {
@@ -226,6 +239,9 @@ func (a *API) Get(ctx context.Context, id string) (*Agent, error) {
 
 // Update updates an existing agent. Requires the current version for optimistic concurrency.
 func (a *API) Update(ctx context.Context, id string, req *UpdateAgentRequest) (*Agent, error) {
+	if req == nil {
+		return nil, fmt.Errorf("agents: UpdateAgentRequest must not be nil")
+	}
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}
@@ -261,7 +277,10 @@ func (a *API) ListVersions(ctx context.Context, id string, params *types.ListPar
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}
-	req := qoderhttp.ApplyListParams(a.client.GET("/agents/"+id+"/versions"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/agents/"+id+"/versions"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[AgentVersion]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err

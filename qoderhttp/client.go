@@ -82,18 +82,27 @@ func multipartBody(fieldName, filename string, data []byte, extraFields map[stri
 	return buf.Bytes(), w.FormDataContentType(), nil
 }
 
-// ApplyListParams applies cursor-based pagination query parameters to a request.
-// It is a convenience helper to reduce duplication across resource packages.
-func ApplyListParams(req *httpclient.RequestBuilder, params *types.ListParams) *httpclient.RequestBuilder {
+// ApplyListParams validates and applies cursor-based pagination query parameters to a request.
+// It returns an error if params fails validation (Limit outside 0-100).
+func ApplyListParams(req *httpclient.RequestBuilder, params *types.ListParams) (*httpclient.RequestBuilder, error) {
 	if params == nil {
-		return req
+		return req, nil
+	}
+	if err := params.Validate(); err != nil {
+		return nil, err
 	}
 	for k, vs := range params.ToQuery() {
 		for _, v := range vs {
 			req = req.WithQuery(k, v)
 		}
 	}
-	return req
+	return req, nil
+}
+
+// ValidateMetadata returns an error if m fails validation (max 16 keys, key 64 chars, value 512 chars).
+// It is safe to call with a nil map.
+func ValidateMetadata(m types.Metadata) error {
+	return m.Validate()
 }
 
 // ApplyIdempotencyKey sets the Idempotency-Key header on the request if a non-empty key is provided.

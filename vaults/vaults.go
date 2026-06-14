@@ -4,6 +4,7 @@ package vaults
 
 import (
 	"context"
+	"fmt"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -94,7 +95,10 @@ func NewAPI(client httpclient.Client) *API {
 
 // List returns a paginated list of vaults.
 func (a *API) List(ctx context.Context, params *types.ListParams) (*types.PaginatedResponse[Vault], error) {
-	req := qoderhttp.ApplyListParams(a.client.GET("/vaults"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/vaults"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Vault]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -104,6 +108,9 @@ func (a *API) List(ctx context.Context, params *types.ListParams) (*types.Pagina
 
 // Create creates a new vault, optionally with initial credentials.
 func (a *API) Create(ctx context.Context, req *CreateVaultRequest, idempotencyKey ...string) (*Vault, error) {
+	if req == nil {
+		return nil, fmt.Errorf("vaults: CreateVaultRequest must not be nil")
+	}
 	r := qoderhttp.ApplyIdempotencyKey(a.client.POST("/vaults").WithJSON(req), idempotencyKey...)
 	var vault Vault
 	if err := r.WithContext(ctx).Do(&vault); err != nil {
@@ -138,6 +145,9 @@ func (a *API) Archive(ctx context.Context, id string) (*Vault, error) {
 
 // CreateCredential adds a new credential to an existing vault.
 func (a *API) CreateCredential(ctx context.Context, vaultID string, req *CreateCredentialRequest) (*Credential, error) {
+	if req == nil {
+		return nil, fmt.Errorf("vaults: CreateCredentialRequest must not be nil")
+	}
 	if err := qoderhttp.ValidateID(vaultID); err != nil {
 		return nil, err
 	}
@@ -153,7 +163,10 @@ func (a *API) ListCredentials(ctx context.Context, vaultID string, params *types
 	if err := qoderhttp.ValidateID(vaultID); err != nil {
 		return nil, err
 	}
-	req := qoderhttp.ApplyListParams(a.client.GET("/vaults/"+vaultID+"/credentials"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/vaults/"+vaultID+"/credentials"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Credential]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err

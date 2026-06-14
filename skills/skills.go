@@ -70,7 +70,10 @@ func NewAPI(client httpclient.Client) *API {
 
 // List returns a paginated list of skills.
 func (a *API) List(ctx context.Context, params *types.ListParams) (*types.PaginatedResponse[Skill], error) {
-	req := qoderhttp.ApplyListParams(a.client.GET("/skills"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/skills"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Skill]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -115,6 +118,9 @@ func (a *API) Get(ctx context.Context, id string, includeContent bool) (*Skill, 
 
 // Update updates a skill's metadata (name, description).
 func (a *API) Update(ctx context.Context, id string, req *UpdateSkillRequest) (*Skill, error) {
+	if req == nil {
+		return nil, fmt.Errorf("skills: UpdateSkillRequest must not be nil")
+	}
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}
@@ -138,7 +144,10 @@ func (a *API) ListVersions(ctx context.Context, id string, params *types.ListPar
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}
-	req := qoderhttp.ApplyListParams(a.client.GET("/skills/"+id+"/versions"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/skills/"+id+"/versions"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Skill]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err

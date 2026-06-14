@@ -4,6 +4,7 @@ package environments
 
 import (
 	"context"
+	"fmt"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -123,7 +124,10 @@ func NewAPI(client httpclient.Client) *API {
 
 // List returns a paginated list of environments.
 func (a *API) List(ctx context.Context, params *types.ListParams) (*types.PaginatedResponse[Environment], error) {
-	req := qoderhttp.ApplyListParams(a.client.GET("/environments"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/environments"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Environment]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -133,6 +137,12 @@ func (a *API) List(ctx context.Context, params *types.ListParams) (*types.Pagina
 
 // Create creates a new environment.
 func (a *API) Create(ctx context.Context, req *CreateEnvRequest, idempotencyKey ...string) (*Environment, error) {
+	if req == nil {
+		return nil, fmt.Errorf("environments: CreateEnvRequest must not be nil")
+	}
+	if req.Name == "" {
+		return nil, fmt.Errorf("environments: CreateEnvRequest.Name is required")
+	}
 	r := qoderhttp.ApplyIdempotencyKey(a.client.POST("/environments").WithJSON(req), idempotencyKey...)
 	var env Environment
 	if err := r.WithContext(ctx).Do(&env); err != nil {
@@ -155,6 +165,9 @@ func (a *API) Get(ctx context.Context, id string) (*Environment, error) {
 
 // Update updates an existing environment.
 func (a *API) Update(ctx context.Context, id string, req *UpdateEnvRequest) (*Environment, error) {
+	if req == nil {
+		return nil, fmt.Errorf("environments: UpdateEnvRequest must not be nil")
+	}
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}

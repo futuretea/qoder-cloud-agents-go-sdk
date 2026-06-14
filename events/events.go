@@ -174,7 +174,10 @@ func (a *API) List(ctx context.Context, sessionID string, params *types.ListPara
 	if err := qoderhttp.ValidateID(sessionID); err != nil {
 		return nil, err
 	}
-	req := qoderhttp.ApplyListParams(a.client.GET("/sessions/"+sessionID+"/events"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/sessions/"+sessionID+"/events"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[map[string]interface{}]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -239,7 +242,18 @@ func (a *API) Stream(ctx context.Context, sessionID string, lastEventID ...strin
 		if rawToken != "" {
 			req.Header.Set("Authorization", "Bearer "+rawToken)
 		}
-		return rawHC.Do(req)
+		resp, err := rawHC.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		// Apply Qoder error parsing so the raw-HTTP path returns typed
+		// *qoderhttp.APIError on non-2xx responses, consistent with every
+		// other API method. For successful SSE streams, QoderErrorMiddleware
+		// detects the text/event-stream Content-Type and returns nil.
+		if err := qoderhttp.QoderErrorMiddleware(resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	req := a.client.GET(streamPath).

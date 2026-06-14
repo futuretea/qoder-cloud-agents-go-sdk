@@ -399,7 +399,10 @@ func TestApplyListParams(t *testing.T) {
 		defer srv.Close()
 
 		c := NewClient(&Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
-		req := ApplyListParams(c.GET("/test"), nil)
+		req, err := ApplyListParams(c.GET("/test"), nil)
+		if err != nil {
+			t.Fatalf("nil params should not cause error: %v", err)
+		}
 		var result map[string]interface{}
 		if err := req.Do(&result); err != nil {
 			t.Fatalf("nil params should not cause error: %v", err)
@@ -421,7 +424,10 @@ func TestApplyListParams(t *testing.T) {
 
 		c := NewClient(&Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
 		params := &types.ListParams{Limit: 20, AfterID: "cursor_abc"}
-		req := ApplyListParams(c.GET("/test"), params)
+		req, err := ApplyListParams(c.GET("/test"), params)
+		if err != nil {
+			t.Fatalf("valid params should not cause error: %v", err)
+		}
 		var result map[string]interface{}
 		if err := req.Do(&result); err != nil {
 			t.Fatalf("non-nil params should not cause error: %v", err)
@@ -439,10 +445,21 @@ func TestApplyListParams(t *testing.T) {
 		defer srv.Close()
 
 		c := NewClient(&Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
-		req := ApplyListParams(c.GET("/test"), &types.ListParams{})
+		req, err := ApplyListParams(c.GET("/test"), &types.ListParams{})
+		if err != nil {
+			t.Fatalf("empty params should not cause error: %v", err)
+		}
 		var result map[string]interface{}
 		if err := req.Do(&result); err != nil {
 			t.Fatalf("empty params should not cause error: %v", err)
+		}
+	})
+
+	t.Run("invalid params returns error", func(t *testing.T) {
+		c := NewClient(&Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+		_, err := ApplyListParams(c.GET("/test"), &types.ListParams{Limit: 200})
+		if err == nil {
+			t.Fatal("expected error for Limit > 100, got nil")
 		}
 	})
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
+	"github.com/futuretea/qoder-cloud-agents-go-sdk/types"
 )
 
 func TestCreateIncludesConfig(t *testing.T) {
@@ -125,5 +126,17 @@ func TestDeleteInvalidID(t *testing.T) {
 
 	if err := api.Delete(context.Background(), ""); err == nil {
 		t.Fatal("expected error for empty id, got nil")
+	}
+}
+
+func TestList_InvalidParams(t *testing.T) {
+	t.Parallel()
+
+	// No server needed - validation fails client-side before HTTP call.
+	client := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(client)
+	_, err := api.List(context.Background(), &types.ListParams{Limit: -1})
+	if err == nil {
+		t.Error("expected error for invalid Limit")
 	}
 }

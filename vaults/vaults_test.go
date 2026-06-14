@@ -325,64 +325,76 @@ func TestVault_Archive(t *testing.T) {
 }
 
 func TestVault_List(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("expected GET, got %s", r.Method)
-		}
-		if r.URL.Path != "/vaults" {
-			t.Errorf("expected path /vaults, got %s", r.URL.Path)
-		}
+	t.Run("with pagination", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET, got %s", r.Method)
+			}
+			if r.URL.Path != "/vaults" {
+				t.Errorf("expected path /vaults, got %s", r.URL.Path)
+			}
 
-		if r.URL.Query().Get("limit") != "10" {
-			t.Errorf("expected limit=10, got %s", r.URL.Query().Get("limit"))
-		}
-		if r.URL.Query().Get("after_id") != "vault_1" {
-			t.Errorf("expected after_id=vault_1, got %s", r.URL.Query().Get("after_id"))
-		}
+			if r.URL.Query().Get("limit") != "10" {
+				t.Errorf("expected limit=10, got %s", r.URL.Query().Get("limit"))
+			}
+			if r.URL.Query().Get("after_id") != "vault_1" {
+				t.Errorf("expected after_id=vault_1, got %s", r.URL.Query().Get("after_id"))
+			}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"data": []map[string]interface{}{
-				{
-					"id":           "vault_2",
-					"type":         "credential_vault",
-					"display_name": "vault-two",
-					"status":       "active",
-					"created_at":   "2026-06-14T12:00:00Z",
-					"updated_at":   "2026-06-14T12:00:00Z",
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": []map[string]interface{}{
+					{
+						"id":           "vault_2",
+						"type":         "credential_vault",
+						"display_name": "vault-two",
+						"status":       "active",
+						"created_at":   "2026-06-14T12:00:00Z",
+						"updated_at":   "2026-06-14T12:00:00Z",
+					},
 				},
-			},
-			"first_id": "vault_2",
-			"last_id":  "vault_2",
-			"has_more": false,
-		})
-	}))
-	defer srv.Close()
+				"first_id": "vault_2",
+				"last_id":  "vault_2",
+				"has_more": false,
+			})
+		}))
+		defer srv.Close()
 
-	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
-	api := NewAPI(c)
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
 
-	params := &types.ListParams{
-		Limit:   10,
-		AfterID: "vault_1",
-	}
+		params := &types.ListParams{
+			Limit:   10,
+			AfterID: "vault_1",
+		}
 
-	resp, err := api.List(context.Background(), params)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp == nil {
-		t.Fatal("expected non-nil response")
-	}
-	if len(resp.Data) != 1 {
-		t.Fatalf("expected 1 vault, got %d", len(resp.Data))
-	}
-	if resp.Data[0].ID != "vault_2" {
-		t.Errorf("expected vault ID 'vault_2', got %s", resp.Data[0].ID)
-	}
-	if resp.HasMore {
-		t.Error("expected HasMore to be false")
-	}
+		resp, err := api.List(context.Background(), params)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected non-nil response")
+		}
+		if len(resp.Data) != 1 {
+			t.Fatalf("expected 1 vault, got %d", len(resp.Data))
+		}
+		if resp.Data[0].ID != "vault_2" {
+			t.Errorf("expected vault ID 'vault_2', got %s", resp.Data[0].ID)
+		}
+		if resp.HasMore {
+			t.Error("expected HasMore to be false")
+		}
+	})
+
+	t.Run("invalid params returns error", func(t *testing.T) {
+		// No server needed - validation fails client-side before HTTP call.
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+		_, err := api.List(context.Background(), &types.ListParams{Limit: -1})
+		if err == nil {
+			t.Error("expected error for invalid Limit")
+		}
+	})
 }
 
 func TestCredential_Create(t *testing.T) {
@@ -511,6 +523,16 @@ func TestCredential_List(t *testing.T) {
 	}
 	if !resp.HasMore {
 		t.Error("expected HasMore to be true")
+	}
+}
+
+func TestCredential_List_InvalidParams(t *testing.T) {
+	// No server needed - validation fails client-side before HTTP call.
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+	_, err := api.ListCredentials(context.Background(), "vault_123", &types.ListParams{Limit: -1})
+	if err == nil {
+		t.Error("expected error for invalid Limit")
 	}
 }
 

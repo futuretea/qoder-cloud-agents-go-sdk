@@ -35,7 +35,7 @@ const (
 // accessors (Agents, Sessions, Events, etc.). Configure the Client fully
 // before passing it to multiple goroutines.
 type Client struct {
-	mu sync.Mutex // guards events and http during reconfiguration
+	mu sync.Mutex // guards events, http, baseURL, token, and httpClient during reconfiguration and lazy Events init
 
 	http       httpclient.Client
 	token      string
@@ -65,16 +65,10 @@ type Client struct {
 // Option configures a Client.
 type Option func(*Client)
 
-// rebuildHTTP recreates the internal HTTP client from the current Client state.
-// It is called by Option functions after mutating configuration fields.
-//
-// NOTE: When options are applied after lazy-initialized API accessors have
-// already been called, only the shared httpclient.Client (c.http) is replaced.
-// Events.Stream() receives updated baseURL/token via UpdateStreamConfig, but
-// other API structs (agents, sessions, environments, files, vaults, skills,
-// memorystores, models) hold a snapshot of c.http captured at their first
-// access. Their non-streaming methods will continue using the old client until
-// the SDK is restructured to support dynamic reconfiguration.
+// rebuildHTTP recreates the internal HTTP client from current Client state.
+// Called by Option functions after mutating configuration fields.
+// Events.Stream() is kept in sync via UpdateStreamConfig; other API accessors
+// hold a snapshot of c.http from first access (see Client doc).
 func (c *Client) rebuildHTTP() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

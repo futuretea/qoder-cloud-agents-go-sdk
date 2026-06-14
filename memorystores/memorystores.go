@@ -6,6 +6,7 @@ package memorystores
 
 import (
 	"context"
+	"fmt"
 
 	httpclient "github.com/futuretea/go-http-client"
 	"github.com/futuretea/qoder-cloud-agents-go-sdk/qoderhttp"
@@ -133,7 +134,10 @@ func NewAPI(client httpclient.Client) *API {
 
 // List returns a paginated list of memory stores.
 func (a *API) List(ctx context.Context, params *types.ListParams) (*types.PaginatedResponse[MemoryStore], error) {
-	req := qoderhttp.ApplyListParams(a.client.GET("/memory_stores"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/memory_stores"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[MemoryStore]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -143,6 +147,9 @@ func (a *API) List(ctx context.Context, params *types.ListParams) (*types.Pagina
 
 // Create creates a new memory store.
 func (a *API) Create(ctx context.Context, req *CreateStoreRequest, idempotencyKey ...string) (*MemoryStore, error) {
+	if req == nil {
+		return nil, fmt.Errorf("memorystores: CreateStoreRequest must not be nil")
+	}
 	r := qoderhttp.ApplyIdempotencyKey(a.client.POST("/memory_stores").WithJSON(req), idempotencyKey...)
 	var store MemoryStore
 	if err := r.WithContext(ctx).Do(&store); err != nil {
@@ -190,7 +197,10 @@ func (a *API) ListEntries(ctx context.Context, storeID string, params *types.Lis
 	if err := qoderhttp.ValidateID(storeID); err != nil {
 		return nil, err
 	}
-	req := qoderhttp.ApplyListParams(a.client.GET("/memory_stores/"+storeID+"/memories"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/memory_stores/"+storeID+"/memories"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[MemoryEntry]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -200,6 +210,15 @@ func (a *API) ListEntries(ctx context.Context, storeID string, params *types.Lis
 
 // CreateEntry creates a new memory entry in a store.
 func (a *API) CreateEntry(ctx context.Context, storeID string, req *CreateEntryRequest) (*MemoryEntry, error) {
+	if req == nil {
+		return nil, fmt.Errorf("memorystores: CreateEntryRequest must not be nil")
+	}
+	if req.Path == "" {
+		return nil, fmt.Errorf("memorystores: CreateEntryRequest.Path is required")
+	}
+	if req.Content == "" {
+		return nil, fmt.Errorf("memorystores: CreateEntryRequest.Content is required")
+	}
 	if err := qoderhttp.ValidateID(storeID); err != nil {
 		return nil, err
 	}
@@ -229,6 +248,12 @@ func (a *API) GetEntry(ctx context.Context, storeID, entryID string) (*MemoryEnt
 
 // UpdateEntry updates a memory entry, creating a new version.
 func (a *API) UpdateEntry(ctx context.Context, storeID, entryID string, req *UpdateEntryRequest) (*MemoryEntry, error) {
+	if req == nil {
+		return nil, fmt.Errorf("memorystores: UpdateEntryRequest must not be nil")
+	}
+	if req.Content == "" {
+		return nil, fmt.Errorf("memorystores: UpdateEntryRequest.Content is required")
+	}
 	if err := qoderhttp.ValidateID(storeID); err != nil {
 		return nil, err
 	}
@@ -266,7 +291,10 @@ func (a *API) ListVersions(ctx context.Context, storeID string, params *types.Li
 	if err := qoderhttp.ValidateID(storeID); err != nil {
 		return nil, err
 	}
-	req := qoderhttp.ApplyListParams(a.client.GET("/memory_stores/"+storeID+"/versions"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/memory_stores/"+storeID+"/versions"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Version]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err

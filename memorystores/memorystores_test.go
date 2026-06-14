@@ -166,58 +166,70 @@ func TestStore_Get(t *testing.T) {
 func TestStore_List(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("expected GET, got %s", r.Method)
-		}
-		if r.URL.Path != "/memory_stores" {
-			t.Errorf("expected path /memory_stores, got %s", r.URL.Path)
-		}
+	t.Run("with pagination", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET, got %s", r.Method)
+			}
+			if r.URL.Path != "/memory_stores" {
+				t.Errorf("expected path /memory_stores, got %s", r.URL.Path)
+			}
 
-		limit := r.URL.Query().Get("limit")
-		if limit != "10" {
-			t.Errorf("expected limit=10, got %q", limit)
-		}
-		afterID := r.URL.Query().Get("after_id")
-		if afterID != "store_001" {
-			t.Errorf("expected after_id=store_001, got %q", afterID)
-		}
+			limit := r.URL.Query().Get("limit")
+			if limit != "10" {
+				t.Errorf("expected limit=10, got %q", limit)
+			}
+			afterID := r.URL.Query().Get("after_id")
+			if afterID != "store_001" {
+				t.Errorf("expected after_id=store_001, got %q", afterID)
+			}
 
-		w.Header().Set("Content-Type", "application/json")
-		lastID := "store_003"
-		_ = json.NewEncoder(w).Encode(types.PaginatedResponse[MemoryStore]{
-			Data: []MemoryStore{
-				{ID: "store_002", Name: "store-two"},
-				{ID: "store_003", Name: "store-three"},
-			},
-			LastID:  &lastID,
-			HasMore: false,
+			w.Header().Set("Content-Type", "application/json")
+			lastID := "store_003"
+			_ = json.NewEncoder(w).Encode(types.PaginatedResponse[MemoryStore]{
+				Data: []MemoryStore{
+					{ID: "store_002", Name: "store-two"},
+					{ID: "store_003", Name: "store-three"},
+				},
+				LastID:  &lastID,
+				HasMore: false,
+			})
+		}))
+		defer srv.Close()
+
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+
+		result, err := api.List(context.Background(), &types.ListParams{
+			Limit:   10,
+			AfterID: "store_001",
 		})
-	}))
-	defer srv.Close()
-
-	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
-	api := NewAPI(c)
-
-	result, err := api.List(context.Background(), &types.ListParams{
-		Limit:   10,
-		AfterID: "store_001",
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if len(result.Data) != 2 {
+			t.Errorf("expected 2 stores, got %d", len(result.Data))
+		}
+		if result.Data[0].ID != "store_002" {
+			t.Errorf("expected first store ID 'store_002', got %q", result.Data[0].ID)
+		}
+		if result.HasMore {
+			t.Error("expected HasMore to be false")
+		}
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if len(result.Data) != 2 {
-		t.Errorf("expected 2 stores, got %d", len(result.Data))
-	}
-	if result.Data[0].ID != "store_002" {
-		t.Errorf("expected first store ID 'store_002', got %q", result.Data[0].ID)
-	}
-	if result.HasMore {
-		t.Error("expected HasMore to be false")
-	}
+
+	t.Run("invalid params returns error", func(t *testing.T) {
+		// No server needed - validation fails client-side before HTTP call.
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+		_, err := api.List(context.Background(), &types.ListParams{Limit: -1})
+		if err == nil {
+			t.Error("expected error for invalid Limit")
+		}
+	})
 }
 
 func TestStore_Archive(t *testing.T) {
@@ -391,46 +403,58 @@ func TestEntry_Get(t *testing.T) {
 func TestEntry_List(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("expected GET, got %s", r.Method)
+	t.Run("with pagination", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET, got %s", r.Method)
+			}
+			if r.URL.Path != "/memory_stores/store_001/memories" {
+				t.Errorf("expected path /memory_stores/store_001/memories, got %s", r.URL.Path)
+			}
+
+			limit := r.URL.Query().Get("limit")
+			if limit != "5" {
+				t.Errorf("expected limit=5, got %q", limit)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(types.PaginatedResponse[MemoryEntry]{
+				Data: []MemoryEntry{
+					{ID: "entry_001", Path: "/notes/a", ContentSHA256: "a1", Version: 1, Status: "active"},
+					{ID: "entry_002", Path: "/notes/b", ContentSHA256: "b1", Version: 2, Status: "active"},
+				},
+				HasMore: true,
+			})
+		}))
+		defer srv.Close()
+
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+
+		result, err := api.ListEntries(context.Background(), "store_001", &types.ListParams{Limit: 5})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
-		if r.URL.Path != "/memory_stores/store_001/memories" {
-			t.Errorf("expected path /memory_stores/store_001/memories, got %s", r.URL.Path)
+		if result == nil {
+			t.Fatal("expected non-nil result")
 		}
-
-		limit := r.URL.Query().Get("limit")
-		if limit != "5" {
-			t.Errorf("expected limit=5, got %q", limit)
+		if len(result.Data) != 2 {
+			t.Errorf("expected 2 entries, got %d", len(result.Data))
 		}
+		if !result.HasMore {
+			t.Error("expected HasMore to be true")
+		}
+	})
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(types.PaginatedResponse[MemoryEntry]{
-			Data: []MemoryEntry{
-				{ID: "entry_001", Path: "/notes/a", ContentSHA256: "a1", Version: 1, Status: "active"},
-				{ID: "entry_002", Path: "/notes/b", ContentSHA256: "b1", Version: 2, Status: "active"},
-			},
-			HasMore: true,
-		})
-	}))
-	defer srv.Close()
-
-	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
-	api := NewAPI(c)
-
-	result, err := api.ListEntries(context.Background(), "store_001", &types.ListParams{Limit: 5})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if len(result.Data) != 2 {
-		t.Errorf("expected 2 entries, got %d", len(result.Data))
-	}
-	if !result.HasMore {
-		t.Error("expected HasMore to be true")
-	}
+	t.Run("invalid params returns error", func(t *testing.T) {
+		// No server needed - validation fails client-side before HTTP call.
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+		_, err := api.ListEntries(context.Background(), "store_001", &types.ListParams{Limit: -1})
+		if err == nil {
+			t.Error("expected error for invalid Limit")
+		}
+	})
 }
 
 func TestEntry_Update(t *testing.T) {
@@ -536,49 +560,61 @@ func TestEntry_Delete(t *testing.T) {
 func TestVersion_List(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("expected GET, got %s", r.Method)
+	t.Run("with pagination", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET, got %s", r.Method)
+			}
+			if r.URL.Path != "/memory_stores/store_001/versions" {
+				t.Errorf("expected path /memory_stores/store_001/versions, got %s", r.URL.Path)
+			}
+
+			limit := r.URL.Query().Get("limit")
+			if limit != "20" {
+				t.Errorf("expected limit=20, got %q", limit)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(types.PaginatedResponse[Version]{
+				Data: []Version{
+					{ID: "ver_002", EntryID: "entry_001", ContentSHA256: "c2", Version: 2, Action: "update", Redacted: false},
+					{ID: "ver_001", EntryID: "entry_001", ContentSHA256: "c1", Version: 1, Action: "create", Redacted: false},
+				},
+				HasMore: false,
+			})
+		}))
+		defer srv.Close()
+
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+
+		result, err := api.ListVersions(context.Background(), "store_001", &types.ListParams{Limit: 20})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
-		if r.URL.Path != "/memory_stores/store_001/versions" {
-			t.Errorf("expected path /memory_stores/store_001/versions, got %s", r.URL.Path)
+		if result == nil {
+			t.Fatal("expected non-nil result")
 		}
-
-		limit := r.URL.Query().Get("limit")
-		if limit != "20" {
-			t.Errorf("expected limit=20, got %q", limit)
+		if len(result.Data) != 2 {
+			t.Errorf("expected 2 versions, got %d", len(result.Data))
 		}
+		if result.Data[0].Action != "update" {
+			t.Errorf("expected first version Action 'update', got %q", result.Data[0].Action)
+		}
+		if result.HasMore {
+			t.Error("expected HasMore to be false")
+		}
+	})
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(types.PaginatedResponse[Version]{
-			Data: []Version{
-				{ID: "ver_002", EntryID: "entry_001", ContentSHA256: "c2", Version: 2, Action: "update", Redacted: false},
-				{ID: "ver_001", EntryID: "entry_001", ContentSHA256: "c1", Version: 1, Action: "create", Redacted: false},
-			},
-			HasMore: false,
-		})
-	}))
-	defer srv.Close()
-
-	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: srv.URL, Token: "test-token", Timeout: 5 * time.Second})
-	api := NewAPI(c)
-
-	result, err := api.ListVersions(context.Background(), "store_001", &types.ListParams{Limit: 20})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected non-nil result")
-	}
-	if len(result.Data) != 2 {
-		t.Errorf("expected 2 versions, got %d", len(result.Data))
-	}
-	if result.Data[0].Action != "update" {
-		t.Errorf("expected first version Action 'update', got %q", result.Data[0].Action)
-	}
-	if result.HasMore {
-		t.Error("expected HasMore to be false")
-	}
+	t.Run("invalid params returns error", func(t *testing.T) {
+		// No server needed - validation fails client-side before HTTP call.
+		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+		api := NewAPI(c)
+		_, err := api.List(context.Background(), &types.ListParams{Limit: -1})
+		if err == nil {
+			t.Error("expected error for invalid Limit")
+		}
+	})
 }
 
 func TestVersion_Get(t *testing.T) {

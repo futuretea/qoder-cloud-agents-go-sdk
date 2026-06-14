@@ -210,7 +210,10 @@ func NewAPI(client httpclient.Client) *API {
 
 // List returns a paginated list of sessions.
 func (a *API) List(ctx context.Context, params *types.ListParams) (*types.PaginatedResponse[Session], error) {
-	req := qoderhttp.ApplyListParams(a.client.GET("/sessions"), params)
+	req, err := qoderhttp.ApplyListParams(a.client.GET("/sessions"), params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[Session]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err
@@ -220,6 +223,12 @@ func (a *API) List(ctx context.Context, params *types.ListParams) (*types.Pagina
 
 // Create creates a new session.
 func (a *API) Create(ctx context.Context, req *CreateSessionRequest, idempotencyKey ...string) (*Session, error) {
+	if req == nil {
+		return nil, fmt.Errorf("sessions: CreateSessionRequest must not be nil")
+	}
+	if req.Agent.ID == "" {
+		return nil, fmt.Errorf("sessions: CreateSessionRequest.Agent.ID is required")
+	}
 	r := qoderhttp.ApplyIdempotencyKey(a.client.POST("/sessions").WithJSON(req), idempotencyKey...)
 	var session Session
 	if err := r.WithContext(ctx).Do(&session); err != nil {
@@ -242,6 +251,9 @@ func (a *API) Get(ctx context.Context, id string) (*Session, error) {
 
 // Update updates an existing session.
 func (a *API) Update(ctx context.Context, id string, req *UpdateSessionRequest) (*Session, error) {
+	if req == nil {
+		return nil, fmt.Errorf("sessions: UpdateSessionRequest must not be nil")
+	}
 	if err := qoderhttp.ValidateID(id); err != nil {
 		return nil, err
 	}

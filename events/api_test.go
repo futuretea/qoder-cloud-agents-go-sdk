@@ -119,27 +119,38 @@ func TestAPI_List_InvalidSessionID(t *testing.T) {
 }
 
 func TestAPI_List_ValidSessionID(t *testing.T) {
-	var requestPath string
-	var query string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestPath = r.URL.Path
-		query = r.URL.RawQuery
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}, "has_more": false})
-	}))
-	defer srv.Close()
+	t.Run("with pagination", func(t *testing.T) {
+		var requestPath string
+		var query string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestPath = r.URL.Path
+			query = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}, "has_more": false})
+		}))
+		defer srv.Close()
 
-	api := newTestAPI(srv.URL)
-	_, err := api.List(context.Background(), "session_123", &types.ListParams{Limit: 10, AfterID: "evt_001"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if requestPath != "/sessions/session_123/events" {
-		t.Errorf("expected path %q, got %q", "/sessions/session_123/events", requestPath)
-	}
-	if query != "after_id=evt_001&limit=10" && query != "limit=10&after_id=evt_001" {
-		t.Errorf("unexpected query: %s", query)
-	}
+		api := newTestAPI(srv.URL)
+		_, err := api.List(context.Background(), "session_123", &types.ListParams{Limit: 10, AfterID: "evt_001"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if requestPath != "/sessions/session_123/events" {
+			t.Errorf("expected path %q, got %q", "/sessions/session_123/events", requestPath)
+		}
+		if query != "after_id=evt_001&limit=10" && query != "limit=10&after_id=evt_001" {
+			t.Errorf("unexpected query: %s", query)
+		}
+	})
+
+	t.Run("invalid params returns error", func(t *testing.T) {
+		// No server needed - validation fails client-side before HTTP call.
+		api := newTestAPI("http://localhost")
+		_, err := api.List(context.Background(), "session_123", &types.ListParams{Limit: -1})
+		if err == nil {
+			t.Error("expected error for invalid Limit")
+		}
+	})
 }
 
 func TestAPI_Stream_InvalidSessionID(t *testing.T) {

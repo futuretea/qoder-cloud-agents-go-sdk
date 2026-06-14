@@ -49,7 +49,10 @@ func (a *API) List(ctx context.Context, purpose string, params *types.ListParams
 	if purpose != "" {
 		req = req.WithQuery("purpose", purpose)
 	}
-	req = qoderhttp.ApplyListParams(req, params)
+	req, err := qoderhttp.ApplyListParams(req, params)
+	if err != nil {
+		return nil, err
+	}
 	var result types.PaginatedResponse[File]
 	if err := req.WithContext(ctx).Do(&result); err != nil {
 		return nil, err

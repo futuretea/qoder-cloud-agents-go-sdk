@@ -473,6 +473,15 @@ func TestSkill_List(t *testing.T) {
 			t.Errorf("expected LastID to be %q, got %v", wantLastID, resp.LastID)
 		}
 	})
+
+	t.Run("invalid params returns error", func(t *testing.T) {
+		// No server needed - validation fails client-side before HTTP call.
+		api := newTestClientAndAPI("http://localhost")
+		_, err := api.List(context.Background(), &types.ListParams{Limit: -1})
+		if err == nil {
+			t.Error("expected error for invalid Limit")
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -557,6 +566,15 @@ func TestSkill_ListVersions(t *testing.T) {
 		}
 		if !resp.HasMore {
 			t.Error("expected HasMore to be true")
+		}
+	})
+
+	t.Run("invalid params returns error", func(t *testing.T) {
+		// No server needed - validation fails client-side before HTTP call.
+		api := newTestClientAndAPI("http://localhost")
+		_, err := api.ListVersions(context.Background(), "skill_abc123", &types.ListParams{Limit: 200})
+		if err == nil {
+			t.Error("expected error for invalid Limit > 100")
 		}
 	})
 }
