@@ -610,7 +610,7 @@ func TestVersion_List(t *testing.T) {
 		// No server needed - validation fails client-side before HTTP call.
 		c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
 		api := NewAPI(c)
-		_, err := api.List(context.Background(), &types.ListParams{Limit: -1})
+		_, err := api.ListVersions(context.Background(), "store_001", &types.ListParams{Limit: -1})
 		if err == nil {
 			t.Error("expected error for invalid Limit")
 		}
@@ -928,5 +928,44 @@ func TestEntry_Get_Error(t *testing.T) {
 	}
 	if !apiErr.IsNotFound() {
 		t.Error("expected IsNotFound to be true")
+	}
+}
+
+func TestStore_Create_NilRequest(t *testing.T) {
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Create(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for nil CreateStoreRequest")
+	}
+	if err.Error() != "memorystores: CreateStoreRequest must not be nil" {
+		t.Errorf("expected nil request error, got %q", err.Error())
+	}
+}
+
+func TestEntry_Create_NilRequest(t *testing.T) {
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.CreateEntry(context.Background(), "store_001", nil)
+	if err == nil {
+		t.Fatal("expected error for nil CreateEntryRequest")
+	}
+	if err.Error() != "memorystores: CreateEntryRequest must not be nil" {
+		t.Errorf("expected nil request error, got %q", err.Error())
+	}
+}
+
+func TestEntry_Update_NilRequest(t *testing.T) {
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.UpdateEntry(context.Background(), "store_001", "entry_001", nil)
+	if err == nil {
+		t.Fatal("expected error for nil UpdateEntryRequest")
+	}
+	if err.Error() != "memorystores: UpdateEntryRequest must not be nil" {
+		t.Errorf("expected nil request error, got %q", err.Error())
 	}
 }

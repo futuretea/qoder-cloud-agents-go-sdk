@@ -822,3 +822,27 @@ func TestSkill_Update_Error(t *testing.T) {
 		t.Error("expected IsServerError")
 	}
 }
+
+func TestSkill_Create_NilRequest(t *testing.T) {
+	api := newTestClientAndAPI("http://localhost")
+
+	_, err := api.Create(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for nil CreateSkillRequest")
+	}
+	if err.Error() != "skills: CreateSkillRequest must not be nil" {
+		t.Errorf("expected nil request error, got %q", err.Error())
+	}
+}
+
+func TestSkill_Update_NilRequest(t *testing.T) {
+	api := newTestClientAndAPI("http://localhost")
+
+	_, err := api.Update(context.Background(), "skill_abc123", nil)
+	if err == nil {
+		t.Fatal("expected error for nil UpdateSkillRequest")
+	}
+	if err.Error() != "skills: UpdateSkillRequest must not be nil" {
+		t.Errorf("expected nil request error, got %q", err.Error())
+	}
+}

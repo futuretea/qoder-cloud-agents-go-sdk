@@ -92,6 +92,17 @@ func NewSendRequest(events ...UserMessageEvent) *SendEventRequest {
 // StreamEvent represents a parsed SSE event from the event stream.
 type StreamEvent = qoderhttp.SSEEvent
 
+// defaultStreamHTTPClient is used for SSE streaming when no custom *http.Client
+// is supplied. It deliberately has no overall timeout: SSE streams are
+// long-lived and cancellation is driven by the request context. A single shared
+// instance is safe (*http.Client is safe for concurrent use) and allows
+// connection reuse across streams.
+//
+// A dedicated raw client is required because the buffered go-http-client path
+// reads the entire response body before returning (to run response middleware),
+// which would defeat streaming and buffer the whole stream into memory.
+var defaultStreamHTTPClient = &http.Client{}
+
 // API provides access to the Events resource.
 type API struct {
 	client httpclient.Client
@@ -134,6 +145,12 @@ func NewAPI(client httpclient.Client, opts ...Option) *API {
 	for _, opt := range opts {
 		opt(a)
 	}
+	// Ensure a usable streaming client. When a baseURL is configured, Stream
+	// uses the raw HTTP path to avoid the buffered go-http-client path that
+	// would read the whole stream into memory before returning.
+	if a.rawHTTPClient == nil {
+		a.rawHTTPClient = defaultStreamHTTPClient
+	}
 	return a
 }
 
@@ -147,17 +164,22 @@ func (a *API) UpdateStreamConfig(baseURL, token string, rawHTTPClient httpclient
 	defer a.mu.Unlock()
 	a.baseURL = baseURL
 	a.token = token
-	if hc, ok := rawHTTPClient.(*http.Client); ok {
+	if hc, ok := rawHTTPClient.(*http.Client); ok && hc != nil {
 		a.rawHTTPClient = hc
 	} else {
-		// Clear the raw HTTP client so Stream falls back to the go-http-client
-		// path instead of using a stale *http.Client from a previous call.
-		a.rawHTTPClient = nil
+		// Fall back to the shared default streaming client instead of a stale
+		// *http.Client from a previous call. Using the default (rather than nil)
+		// keeps Stream on the raw HTTP path; the buffered go-http-client path
+		// would read the entire stream into memory before returning.
+		a.rawHTTPClient = defaultStreamHTTPClient
 	}
 }
 
 // Send sends one or more user message events to a session.
 func (a *API) Send(ctx context.Context, sessionID string, req *SendEventRequest) error {
+	if req == nil {
+		return fmt.Errorf("events: SendEventRequest must not be nil")
+	}
 	if err := qoderhttp.ValidateID(sessionID); err != nil {
 		return err
 	}
@@ -216,7 +238,9 @@ func (a *API) Stream(ctx context.Context, sessionID string, lastEventID ...strin
 	streamPath := "/sessions/" + sessionID + "/events/stream"
 
 	// Streaming responses cannot be consumed by response middleware that buffers
-	// the body. Use the raw HTTP client when configured.
+	// the body. Use the raw HTTP client whenever a baseURL is known (the common
+	// case via qoder.Client.Events); the buffered fallback below is only reached
+	// when no baseURL was configured (e.g., a directly constructed API in tests).
 	a.mu.RLock()
 	rawHC := a.rawHTTPClient
 	rawBaseURL := a.baseURL

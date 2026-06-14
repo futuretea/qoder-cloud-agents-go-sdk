@@ -80,12 +80,17 @@ func QoderErrorMiddleware(resp *http.Response) error {
 		return nil
 	}
 
-	// Streaming responses (e.g., SSE) must not have their bodies consumed by
-	// error parsing middleware; the caller reads the stream directly.
+	// A successful streaming response (SSE) must not have its body consumed by
+	// error parsing; the caller reads the stream directly. Detect this via the
+	// response Content-Type (the 2xx early-return above already covers the
+	// normal success case).
+	//
+	// We deliberately do NOT skip based on the request's Accept header: an error
+	// response to a streaming request carries a JSON error envelope (Content-Type
+	// application/json), so skipping on request Accept would silently swallow
+	// 4xx/5xx errors on the streaming endpoint and hand the caller a raw error
+	// body to (mis)parse as SSE.
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
-		return nil
-	}
-	if resp.Request != nil && strings.HasPrefix(resp.Request.Header.Get("Accept"), "text/event-stream") {
 		return nil
 	}
 

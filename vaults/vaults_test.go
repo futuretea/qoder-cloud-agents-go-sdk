@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -735,5 +736,36 @@ func TestCredential_Create_Error(t *testing.T) {
 	}
 	if !apiErr.IsNotFound() {
 		t.Error("expected IsNotFound")
+	}
+}
+
+func TestVault_Create_NilRequest(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	_, err := api.Create(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for nil request, got nil")
+	}
+	if !strings.Contains(err.Error(), "must not be nil") {
+		t.Errorf("expected error to mention 'must not be nil', got %q", err.Error())
+	}
+}
+
+func TestCredential_Create_NilRequest(t *testing.T) {
+	t.Parallel()
+
+	c := qoderhttp.NewClient(&qoderhttp.Config{BaseURL: "http://localhost", Token: "test-token", Timeout: 5 * time.Second})
+	api := NewAPI(c)
+
+	// nil-request guard runs before ValidateID, so any vaultID works.
+	_, err := api.CreateCredential(context.Background(), "vault_001", nil)
+	if err == nil {
+		t.Fatal("expected error for nil request, got nil")
+	}
+	if !strings.Contains(err.Error(), "must not be nil") {
+		t.Errorf("expected error to mention 'must not be nil', got %q", err.Error())
 	}
 }

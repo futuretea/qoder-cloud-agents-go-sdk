@@ -48,6 +48,18 @@ func TestAPI_Send_InvalidSessionID(t *testing.T) {
 	}
 }
 
+func TestAPI_Send_NilRequest(t *testing.T) {
+	api := newTestAPI("https://api.qoder.com")
+
+	err := api.Send(context.Background(), "session_123", nil)
+	if err == nil {
+		t.Fatal("expected error for nil SendEventRequest")
+	}
+	if err.Error() != "events: SendEventRequest must not be nil" {
+		t.Errorf("expected nil request error, got %q", err.Error())
+	}
+}
+
 func TestAPI_Send_ValidSessionID(t *testing.T) {
 	var requestPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -231,5 +243,106 @@ func TestStreamEvent_TypeAlias(t *testing.T) {
 	evt := StreamEvent(qoderhttp.SSEEvent{ID: "evt_001"})
 	if evt.ID != "evt_001" {
 		t.Errorf("expected ID evt_001, got %s", evt.ID)
+	}
+}
+
+// doerWrapper is an httpclient.Doer that is NOT a *http.Client. It is used to
+// verify that UpdateStreamConfig falls back to the default streaming client
+// (keeping the raw path usable) when the supplied Doer is not a *http.Client.
+type doerWrapper struct {
+	inner *http.Client
+}
+
+func (d *doerWrapper) Do(req *http.Request) (*http.Response, error) {
+	return d.inner.Do(req)
+}
+
+func TestUpdateStreamConfig_HTTPClientUsesRawPath(t *testing.T) {
+	var gotAuth, gotAccept string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotAccept = r.Header.Get("Accept")
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: hello\n\n"))
+	}))
+	defer srv.Close()
+
+	// Start with a buffered-only API (no baseURL on the events side), then push
+	// a real *http.Client config in, activating the raw path.
+	api := NewAPI(httpclient.NewClient(&httpclient.Config{BaseURL: srv.URL}))
+	api.UpdateStreamConfig(srv.URL, "tok", srv.Client())
+
+	resp, err := api.Stream(context.Background(), "sess_123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Raw-path-specific behavior: the request carries the bearer token and the
+	// SSE Accept header set by the raw branch.
+	if gotAuth != "Bearer tok" {
+		t.Errorf("expected Authorization %q, got %q", "Bearer tok", gotAuth)
+	}
+	if gotAccept != "text/event-stream" {
+		t.Errorf("expected Accept %q, got %q", "text/event-stream", gotAccept)
+	}
+}
+
+func TestUpdateStreamConfig_NonHTTPClientFallsBackToDefault(t *testing.T) {
+	var gotAccept string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccept = r.Header.Get("Accept")
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: hello\n\n"))
+	}))
+	defer srv.Close()
+
+	api := NewAPI(httpclient.NewClient(&httpclient.Config{BaseURL: srv.URL}))
+
+	// Pass a Doer that is not a *http.Client. UpdateStreamConfig must reset
+	// rawHTTPClient to the shared default (NOT nil), keeping the raw path usable
+	// when baseURL is set. The default client reaches the httptest server over a
+	// real local TCP connection.
+	var doer httpclient.Doer = &doerWrapper{inner: srv.Client()}
+	api.UpdateStreamConfig(srv.URL, "tok", doer)
+
+	resp, err := api.Stream(context.Background(), "sess_123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Reaching the server with the SSE Accept header confirms the raw path ran
+	// via the default client rather than the buffered fallback or a nil client.
+	if gotAccept != "text/event-stream" {
+		t.Errorf("expected Accept %q, got %q", "text/event-stream", gotAccept)
+	}
+}
+
+func TestUpdateStreamConfig_NilDoerFallsBackToDefault(t *testing.T) {
+	var reached bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached = true
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: hello\n\n"))
+	}))
+	defer srv.Close()
+
+	api := NewAPI(httpclient.NewClient(&httpclient.Config{BaseURL: srv.URL}))
+	// A nil Doer must not leave rawHTTPClient nil; it falls back to the default,
+	// so Stream stays on the raw path.
+	api.UpdateStreamConfig(srv.URL, "tok", nil)
+
+	resp, err := api.Stream(context.Background(), "sess_123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if !reached {
+		t.Error("expected raw path to reach the server after nil Doer fallback")
 	}
 }
